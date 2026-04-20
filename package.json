@@ -25,7 +25,8 @@
     "lint": "oxlint .",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
-    "pack:check": "npm pack --dry-run"
+    "pack:check": "npm pack --dry-run",
+    "pack:smoke": "bun run scripts/pack-smoke.ts"
   },
   "dependencies": {
     "commander": "14.0.3",
