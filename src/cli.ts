@@ -21,11 +21,6 @@ registerCloneCommand(program);
 registerInitCommand(program);
 registerHelpCommand(program);
 
-program.addHelpText(
-  'after',
-  '\nImplementation is in progress. See PLAN.md for the roadmap.\n'
-);
-
 program.action(() => {
   program.outputHelp();
 });

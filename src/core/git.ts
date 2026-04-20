@@ -123,6 +123,92 @@ export async function listLocalBranches(repoPath: string): Promise<string[]> {
     .filter(Boolean);
 }
 
+export interface AddWorktreeOptions {
+  branchName: string;
+  createBranch?: boolean;
+  startPoint?: string;
+}
+
+export async function addWorktree(
+  repoPath: string,
+  targetPath: string,
+  options: AddWorktreeOptions
+): Promise<void> {
+  const args = ['worktree', 'add'];
+
+  if (options.createBranch) {
+    args.push('-b', options.branchName, targetPath);
+    if (options.startPoint) {
+      args.push(options.startPoint);
+    }
+  } else {
+    args.push(targetPath, options.branchName);
+  }
+
+  await expectGitSuccess(args, repoPath);
+}
+
+export async function removeWorktree(
+  repoPath: string,
+  worktreePath: string,
+  force = false
+): Promise<void> {
+  const args = ['worktree', 'remove'];
+  if (force) {
+    args.push('-f');
+  }
+
+  args.push(worktreePath);
+  await expectGitSuccess(args, repoPath);
+}
+
+export async function deleteBranch(
+  repoPath: string,
+  branchName: string,
+  force = false
+): Promise<void> {
+  await expectGitSuccess(['branch', force ? '-D' : '-d', branchName], repoPath);
+}
+
+export async function deleteRemoteBranch(
+  repoPath: string,
+  remoteName: string,
+  branchName: string
+): Promise<void> {
+  await expectGitSuccess(['push', remoteName, `:${branchName}`], repoPath);
+}
+
+export async function cloneRepo(
+  repoUrl: string,
+  targetPath: string
+): Promise<void> {
+  await expectGitSuccess(['clone', repoUrl, targetPath]);
+}
+
+export async function getCurrentBranch(
+  repoPath: string
+): Promise<string | null> {
+  const result = await runGit(
+    ['symbolic-ref', '--quiet', '--short', 'HEAD'],
+    repoPath
+  );
+  const branchName = result.stdout.trim();
+  return result.exitCode === 0 && branchName ? branchName : null;
+}
+
+export async function setBranchUpstream(
+  repoPath: string,
+  branchName: string,
+  upstreamRef: string
+): Promise<boolean> {
+  const result = await runGit(
+    ['branch', '--set-upstream-to', upstreamRef, branchName],
+    repoPath
+  );
+
+  return result.exitCode === 0;
+}
+
 export async function detectRemoteHeadFromUrl(
   target: string
 ): Promise<string | null> {
