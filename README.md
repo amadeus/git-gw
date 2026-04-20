@@ -1,12 +1,15 @@
 # git-gw
 
-TypeScript reimplementation of the `gw` fish function for managing git worktree projects.
+TypeScript reimplementation of the `gw` fish function for managing git worktree
+projects.
 
-Development uses Bun for convenience. The published CLI will still ship as normal Node-compatible build output.
+Development uses Bun for convenience. The published CLI will still ship as
+normal Node-compatible build output.
 
 ## Status
 
-The project scaffold is in place. Command parity and shell integration are the next implementation steps.
+The project scaffold is in place. Command parity and shell integration are the
+next implementation steps.
 
 ## Local Development
 
@@ -14,11 +17,18 @@ The project scaffold is in place. Command parity and shell integration are the n
 bun install
 bun run dev -- --help
 bun run build
+bun run format
+bun run format:check
+bun run lint
 bun run test
 bun run typecheck
 bun run pack:check
 ```
 
+`bun run format` also rewrites internal relative imports to the `@/` alias
+before running `oxfmt`.
+
 ## Install
 
-Publishing and shell integration docs will be added as the CLI implementation lands.
+Publishing and shell integration docs will be added as the CLI implementation
+lands.
