@@ -292,18 +292,18 @@ function gw
         or return 1
 
         env GW_CWD_FILE="$tmpfile" command gw $argv
-        set -l status $status
+        set -l _gw_status $status
 
-        if test $status -eq 0; and test -s "$tmpfile"
+        if test $_gw_status -eq 0; and test -s "$tmpfile"
             set -l target (string trim -- (command cat -- "$tmpfile"))
             if test -n "$target"
                 cd "$target"
-                or set status $status
+                or set _gw_status $status
             end
         end
 
         command rm -f -- "$tmpfile"
-        return $status
+        return $_gw_status
     end
 
     command gw $argv
