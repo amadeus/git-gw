@@ -9,7 +9,6 @@ import {
   printGwError,
   requestDirectoryChange,
   resolveBranchWithPrompt,
-  selectWorktreePath,
 } from '@/commands/shared';
 import { encodeBranchPath } from '@/core/branches';
 import { getBranchPrefix, getRemoteName } from '@/core/config';
@@ -27,6 +26,7 @@ import {
   findWorktreeForFolderName,
   listWorktrees,
 } from '@/core/worktrees';
+import { pickSwitchWorktreePath } from '@/tui/switch-picker';
 
 interface SwitchOptions {
   ignorePrefix?: boolean;
@@ -50,7 +50,7 @@ export function registerSwitchCommand(program: Command): void {
               throw new Error('--ignore-prefix requires a branch name');
             }
 
-            const selectedPath = await selectWorktreePath(
+            const selectedPath = await pickSwitchWorktreePath(
               context.anchorRepo,
               currentDir
             );

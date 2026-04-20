@@ -218,31 +218,6 @@ export async function resolveBranchWithPrompt(
   );
 }
 
-export async function selectWorktreePath(
-  anchorRepo: string,
-  currentDir: string
-): Promise<string | null> {
-  if (!isInteractiveTerminal()) {
-    throw new Error(
-      'gw switch without a branch requires an interactive terminal'
-    );
-  }
-
-  const rows = await formatWorktreeRows(anchorRepo, currentDir);
-  if (rows.length === 0) {
-    throw new Error('no attached worktrees found');
-  }
-
-  return selectValue(
-    'gw switch',
-    rows.map((row) => ({
-      label: row.display,
-      value: row.path,
-      initial: row.isCurrent,
-    }))
-  );
-}
-
 export async function findChildRepoRoots(
   projectRoot: string
 ): Promise<string[]> {

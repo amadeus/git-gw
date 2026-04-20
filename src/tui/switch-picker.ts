@@ -1,0 +1,88 @@
+import Enquirer from 'enquirer';
+
+import { formatWorktreeRows, isInteractiveTerminal } from '@/commands/shared';
+
+interface SwitchPickerChoice {
+  name: string;
+  value: string;
+  message: string;
+  hint: string;
+  searchText: string;
+}
+
+function normalizeSearchText(value: string): string {
+  return value.toLowerCase();
+}
+
+function matchesSearch(input: string, searchText: string): boolean {
+  const normalizedInput = normalizeSearchText(input).trim();
+  if (normalizedInput === '') {
+    return true;
+  }
+
+  return normalizedInput
+    .split(/\s+/u)
+    .every((term) => searchText.includes(term));
+}
+
+function formatPickerLabel(
+  branchName: string,
+  folderName: string,
+  isCurrent: boolean
+): string {
+  return `${isCurrent ? '*' : ' '} ${branchName} ${folderName}`;
+}
+
+export async function pickSwitchWorktreePath(
+  anchorRepo: string,
+  currentDir: string
+): Promise<string | null> {
+  if (!isInteractiveTerminal()) {
+    throw new Error(
+      'gw switch without a branch requires an interactive terminal'
+    );
+  }
+
+  const rows = await formatWorktreeRows(anchorRepo, currentDir);
+  if (rows.length === 0) {
+    throw new Error('no attached worktrees found');
+  }
+
+  const choices: SwitchPickerChoice[] = rows.map((row, index) => ({
+    name: String(index),
+    value: row.path,
+    message: formatPickerLabel(row.branchName, row.folderName, row.isCurrent),
+    hint: row.path,
+    searchText: normalizeSearchText(
+      `${row.branchName} ${row.folderName} ${row.path}`
+    ),
+  }));
+
+  const initial = rows.findIndex((row) => row.isCurrent);
+  const enquirer = new Enquirer<{ selected: string }>();
+  const promptOptions = {
+    type: 'autocomplete',
+    name: 'selected',
+    message: 'gw switch',
+    initial: initial === -1 ? undefined : initial,
+    limit: 10,
+    choices,
+    suggest(input: string, promptChoices: SwitchPickerChoice[]) {
+      return promptChoices.filter((choice) =>
+        matchesSearch(input, choice.searchText)
+      );
+    },
+  };
+
+  try {
+    const answer = await enquirer.prompt(promptOptions as never);
+
+    return answer.selected;
+  } catch (error) {
+    if (error == null || error === '') {
+      return null;
+    }
+
+    throw error;
+  }
+}
