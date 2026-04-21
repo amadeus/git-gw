@@ -10,6 +10,17 @@ interface SwitchPickerChoice {
   searchText: string;
 }
 
+interface EnquirerPromptInternal {
+  state: {
+    cancelled: boolean;
+    submitted: boolean;
+    size?: number;
+  };
+  clear(lines?: number): void;
+  close(): Promise<void>;
+  emit(event: 'cancel', value: string): boolean;
+}
+
 function normalizeSearchText(value: string): string {
   return value.toLowerCase();
 }
@@ -31,6 +42,16 @@ function formatPickerLabel(
   isCurrent: boolean
 ): string {
   return `${isCurrent ? '*' : ' '} ${branchName} ${folderName}`;
+}
+
+async function cancelPromptSilently(
+  this: EnquirerPromptInternal
+): Promise<void> {
+  this.state.cancelled = true;
+  this.state.submitted = true;
+  this.clear(this.state.size || 0);
+  await this.close();
+  this.emit('cancel', '');
 }
 
 export async function pickSwitchWorktreePath(
@@ -67,6 +88,7 @@ export async function pickSwitchWorktreePath(
     initial: initial === -1 ? undefined : initial,
     limit: 10,
     choices,
+    cancel: cancelPromptSilently,
     suggest(input: string, promptChoices: SwitchPickerChoice[]) {
       return promptChoices.filter((choice) =>
         matchesSearch(input, choice.searchText)

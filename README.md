@@ -66,8 +66,14 @@ gw setup --install --shell fish
 gw setup --install --shell nu
 ```
 
-Persistent setup writes generated integration to the user's config directory and
-adds a small managed source block to the shell rc file.
+Persistent setup writes generated integration to the user's config directory.
+For `bash`, `zsh`, and `nu`, it adds a small managed source block to the shell
+rc file. For `fish`, it installs an autoloaded `gw` function file under
+`$XDG_CONFIG_HOME/fish/functions`. If shell integration is already active in the
+current session, `gw setup --install` also sources the generated integration
+immediately. First-time `bash`, `zsh`, and `nu` setup still requires a new shell
+or the session activation command above. Fish can autoload the installed
+function on the next `gw` invocation.
 
 ## Quick Start
 
@@ -232,7 +238,7 @@ npm pack
 To validate a tarball with a temporary global prefix:
 
 ```bash
-npm install -g --prefix /tmp/gw-prefix ./amadeusdemarzi-git-gw-0.1.0-beta.0.tgz
+npm install -g --prefix /tmp/gw-prefix ./amadeusdemarzi-git-gw-0.1.0-beta.2.tgz
 PATH="/tmp/gw-prefix/bin:$PATH" gw --help
 ```
 
@@ -247,7 +253,7 @@ For a local tarball beta:
 ```bash
 bun run pack:smoke
 npm pack
-npm install -g ./amadeusdemarzi-git-gw-0.1.0-beta.0.tgz
+npm install -g ./amadeusdemarzi-git-gw-0.1.0-beta.2.tgz
 gw setup
 ```
 
@@ -286,5 +292,7 @@ interactive terminal. Pass an explicit branch name.
 `gw clone` cannot detect the remote default branch: verify that the repo URL is
 reachable and that the remote advertises `HEAD`.
 
-Persistent setup succeeded but the command still behaves the same: open a new
-shell or source the updated shell rc file.
+Persistent setup succeeded but the command still behaves the same: the shell
+wrapper was not active yet. Open a new shell or run the session activation
+command. In `fish`, the next `gw` invocation should autoload the installed
+function file.

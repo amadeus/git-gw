@@ -23,6 +23,8 @@ async function createShellFixture() {
   const fixture = await createRemoteFixture(['feature/test'], 'main');
   const launcherDir = await makeTempDir('gw-shell-launcher-');
   const workDir = join(fixture.rootDir, 'work');
+  const homeDir = await makeTempDir('gw-shell-home-');
+  const configDir = await makeTempDir('gw-shell-config-');
 
   await mkdir(workDir, { recursive: true });
   await createDistLauncher(launcherDir);
@@ -30,14 +32,42 @@ async function createShellFixture() {
   return {
     env: {
       ...process.env,
+      HOME: homeDir,
       PATH: `${launcherDir}:${process.env.PATH || ''}`,
+      XDG_CONFIG_HOME: configDir,
     },
+    configDir,
+    homeDir,
     originPath: fixture.originPath,
     workDir: await realpath(workDir),
   };
 }
 
 describe('shell wrapper integration', () => {
+  (hasBash ? test : test.skip)(
+    'bash setup install sources generated integration when wrapper is active',
+    async () => {
+      const fixture = await createShellFixture();
+
+      const result = await execa(
+        'bash',
+        [
+          '--noprofile',
+          '--norc',
+          '-c',
+          'set -e; eval "$(gw shell-init --shell bash)"; __gw_needs_cd() { return 1; }; gw setup --install --shell bash >/dev/null; cd "$1"; gw clone demo "$2" >/dev/null 2>/dev/null; test "$(pwd -P)" = "$1/demo/main"; printf OK',
+          '_',
+          fixture.workDir,
+          fixture.originPath,
+        ],
+        { env: fixture.env }
+      );
+
+      expect(result.stdout).toContain('OK');
+    },
+    60_000
+  );
+
   (hasBash ? test : test.skip)(
     'supports the bash wrapper flow',
     async () => {
@@ -63,6 +93,29 @@ describe('shell wrapper integration', () => {
   );
 
   (hasZsh ? test : test.skip)(
+    'zsh setup install sources generated integration when wrapper is active',
+    async () => {
+      const fixture = await createShellFixture();
+
+      const result = await execa(
+        'zsh',
+        [
+          '-f',
+          '-c',
+          'set -e; eval "$(gw shell-init --shell zsh)"; __gw_needs_cd() { return 1; }; gw setup --install --shell zsh >/dev/null; cd "$1"; gw clone demo "$2" >/dev/null 2>/dev/null; [[ "$(pwd -P)" == "$1/demo/main" ]]; printf OK',
+          '_',
+          fixture.workDir,
+          fixture.originPath,
+        ],
+        { env: fixture.env }
+      );
+
+      expect(result.stdout).toContain('OK');
+    },
+    60_000
+  );
+
+  (hasZsh ? test : test.skip)(
     'supports the zsh wrapper flow',
     async () => {
       const fixture = await createShellFixture();
@@ -74,6 +127,47 @@ describe('shell wrapper integration', () => {
           '-c',
           'set -e; source <(gw shell-init); cd "$1"; gw clone demo "$2" >/dev/null 2>/dev/null; [[ "$(pwd -P)" == "$1/demo/main" ]]; gw switch feature/test >/dev/null 2>/dev/null; [[ "$(pwd -P)" == "$1/demo/feature~test" ]]; gw list >/dev/null; printf OK',
           '_',
+          fixture.workDir,
+          fixture.originPath,
+        ],
+        { env: fixture.env }
+      );
+
+      expect(result.stdout).toContain('OK');
+    },
+    60_000
+  );
+
+  (hasFish ? test : test.skip)(
+    'fish setup installs an autoloaded gw function without config.fish',
+    async () => {
+      const fixture = await createShellFixture();
+
+      const result = await execa(
+        'fish',
+        [
+          '-c',
+          'command gw setup --install --shell fish >/dev/null; test -f "$XDG_CONFIG_HOME/fish/functions/gw.fish"; or exit 1; test ! -e "$XDG_CONFIG_HOME/fish/config.fish"; or exit 1; gw --help >/dev/null; functions -q gw; or exit 1; printf OK',
+        ],
+        { env: fixture.env }
+      );
+
+      expect(result.stdout).toContain('OK');
+    },
+    60_000
+  );
+
+  (hasFish ? test : test.skip)(
+    'fish setup install sources generated integration when wrapper is active',
+    async () => {
+      const fixture = await createShellFixture();
+
+      const result = await execa(
+        'fish',
+        [
+          '--no-config',
+          '-c',
+          'gw shell-init --shell fish | source; functions -e __gw_needs_cd; function __gw_needs_cd; return 1; end; gw setup --install --shell fish >/dev/null; test -f "$XDG_CONFIG_HOME/fish/functions/gw.fish"; or exit 1; test ! -e "$XDG_CONFIG_HOME/fish/config.fish"; or exit 1; cd $argv[1]; gw clone demo $argv[2] >/dev/null 2>/dev/null; test (realpath .) = "$argv[1]/demo/main"; or exit 1; printf OK',
           fixture.workDir,
           fixture.originPath,
         ],

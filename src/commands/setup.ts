@@ -1,10 +1,11 @@
 import { type Command, Option } from 'commander';
 import Enquirer from 'enquirer';
+import { writeFile } from 'node:fs/promises';
 
 import { commandAction, isInteractiveTerminal } from '@/commands/shared';
 import {
   getSessionActivationCommand,
-  getShellRcFilePath,
+  getShellInstallPath,
   installShellIntegration,
   resolveShellName,
   SHELL_NAMES,
@@ -14,6 +15,15 @@ import {
 interface SetupOptions {
   install?: boolean;
   shell?: ShellName;
+}
+
+async function requestShellSource(sourcePath: string): Promise<void> {
+  const sourceFile = process.env.GW_SOURCE_FILE;
+  if (!sourceFile) {
+    return;
+  }
+
+  await writeFile(sourceFile, `${sourcePath}\n`, 'utf8');
 }
 
 async function promptForInstall(
@@ -57,7 +67,7 @@ export function registerSetupCommand(program: Command): void {
       commandAction(async (options: SetupOptions) => {
         const shell = await resolveShellName(options.shell);
         const sessionCommand = getSessionActivationCommand(shell);
-        const rcFilePath = await getShellRcFilePath(shell);
+        const installPath = await getShellInstallPath(shell);
 
         process.stdout.write(`Detected shell: ${shell}\n`);
         process.stdout.write('\n');
@@ -67,7 +77,7 @@ export function registerSetupCommand(program: Command): void {
         let shouldInstall = Boolean(options.install);
         if (!shouldInstall && isInteractiveTerminal()) {
           process.stdout.write('\n');
-          shouldInstall = await promptForInstall(shell, rcFilePath);
+          shouldInstall = await promptForInstall(shell, installPath);
         }
 
         if (!shouldInstall) {
@@ -78,15 +88,26 @@ export function registerSetupCommand(program: Command): void {
         }
 
         const installResult = await installShellIntegration(shell);
+        await requestShellSource(installResult.initFilePath);
+
         process.stdout.write('\n');
         process.stdout.write('Installed persistent shell integration:\n');
-        process.stdout.write(`  rc file: ${installResult.rcFilePath}\n`);
-        process.stdout.write(`  init file: ${installResult.initFilePath}\n`);
+        process.stdout.write(
+          `  ${installResult.rcFileLabel}: ${installResult.rcFilePath}\n`
+        );
+
+        if (installResult.initFilePath !== installResult.rcFilePath) {
+          process.stdout.write(`  init file: ${installResult.initFilePath}\n`);
+        }
 
         if (installResult.updatedRcFile) {
-          process.stdout.write('  status: rc file updated\n');
+          process.stdout.write(
+            `  status: ${installResult.rcFileLabel} updated\n`
+          );
         } else {
-          process.stdout.write('  status: rc file already up to date\n');
+          process.stdout.write(
+            `  status: ${installResult.rcFileLabel} already up to date\n`
+          );
         }
       })
     );
