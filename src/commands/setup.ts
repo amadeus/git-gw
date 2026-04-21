@@ -126,9 +126,11 @@ export function registerSetupCommand(program: Command): void {
 
         if (!didRequestShellSource) {
           process.stdout.write('\n');
-          process.stdout.write('Current shell activation:\n');
           process.stdout.write(
-            `  ${getSourceCommand(installResult.initFilePath)}\n`
+            'Restart shell or run the following command:\n\n'
+          );
+          process.stdout.write(
+            `  ${getSourceCommand(installResult.initFilePath)}\n\n`
           );
         }
       })

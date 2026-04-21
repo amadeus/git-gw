@@ -159,6 +159,9 @@ describe('shell wrapper integration', () => {
       );
 
       expect(result.stdout).toContain(`function file: ${functionFile}`);
+      expect(result.stdout).toContain(
+        'Restart shell or run the following command:\n\n'
+      );
       expect(result.stdout).toContain(`source "${functionFile}"`);
       expect(result.stdout).toContain('OK');
     },
