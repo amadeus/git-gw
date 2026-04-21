@@ -45,7 +45,7 @@ Project conventions to keep updated as the repo evolves.
 ## Packaging
 
 - Published package contents should stay minimal: `package.json`, `README.md`,
-  and `dist/cli.js`.
+  `LICENSE`, and `dist/cli.js`.
 - Use `bun run pack:smoke` to verify the packed artifact, `bin` wiring, and
   shell handoff behavior from an installed tarball.
 - Beta versions use semver prerelease identifiers such as `0.1.0-beta.0`; prefer

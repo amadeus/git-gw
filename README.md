@@ -152,9 +152,18 @@ gw setup [--install] [--shell bash|zsh|fish|nu]
 gw help
 ```
 
-## Compatibility Notes
+## Behavior Notes
 
-- `.gw_project` remains compatible with the original fish implementation.
+- `.gw_project` is the project marker file.
+  - `version` is the config format version.
+  - `primary` is the primary/default branch directory, usually `main` or
+    `master`.
+  - `remote` is the Git remote used for remote branch lookups and deletes,
+    usually `origin`.
+  - `path_style` controls worktree folder naming. The current supported value is
+    `flat-tilde`.
+  - `branch-prefix` is an optional branch prefix that `gw switch` can apply
+    during branch resolution and strip from folder names.
 - Worktree folders use the existing `flat-tilde` layout: branch slashes become
   `~`, so `feature/login` becomes `feature~login`.
 - `gw switch` first accepts an existing worktree folder name, then checks local
@@ -163,13 +172,9 @@ gw help
   current worktree while the shell is inside it.
 - Relative `core.hooksPath` directories are copied from the primary worktree to
   newly created worktrees when possible.
-
-Deliberate differences from `reference.fish`:
-
-- The npm package ships a Node CLI plus shell wrappers. The original fish
-  implementation was only a fish function.
-- `bash`, `zsh`, `fish`, and `nu` wrappers are supported.
-- The no-argument `gw switch` picker is implemented in TypeScript with search.
+- The npm package ships a Node CLI plus shell wrappers for `bash`, `zsh`,
+  `fish`, and `nu`.
+- The no-argument `gw switch` picker is searchable and interactive.
 
 ## Local Development
 

@@ -56,7 +56,12 @@ async function createPackedTarball(repoRoot: string): Promise<string> {
   const packedFiles = new Set(
     (packageInfo.files || []).map((file) => file.path)
   );
-  const expectedFiles = new Set(['README.md', 'dist/cli.js', 'package.json']);
+  const expectedFiles = new Set([
+    'LICENSE',
+    'README.md',
+    'dist/cli.js',
+    'package.json',
+  ]);
 
   if (
     packedFiles.size !== expectedFiles.size ||
