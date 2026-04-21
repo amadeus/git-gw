@@ -142,16 +142,24 @@ describe('shell wrapper integration', () => {
     'fish setup installs an autoloaded gw function without config.fish',
     async () => {
       const fixture = await createShellFixture();
+      const functionFile = join(
+        fixture.configDir,
+        'fish',
+        'functions',
+        'gw.fish'
+      );
 
       const result = await execa(
         'fish',
         [
           '-c',
-          'command gw setup --install --shell fish >/dev/null; test -f "$XDG_CONFIG_HOME/fish/functions/gw.fish"; or exit 1; test ! -e "$XDG_CONFIG_HOME/fish/config.fish"; or exit 1; gw --help >/dev/null; functions -q gw; or exit 1; printf OK',
+          'gw setup --install --shell fish; test -f "$XDG_CONFIG_HOME/fish/functions/gw.fish"; or exit 1; test ! -e "$XDG_CONFIG_HOME/fish/config.fish"; or exit 1; source "$XDG_CONFIG_HOME/fish/functions/gw.fish"; gw --help >/dev/null; functions -q gw; or exit 1; printf OK',
         ],
         { env: fixture.env }
       );
 
+      expect(result.stdout).toContain(`function file: ${functionFile}`);
+      expect(result.stdout).toContain(`source "${functionFile}"`);
       expect(result.stdout).toContain('OK');
     },
     60_000

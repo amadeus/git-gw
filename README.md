@@ -71,9 +71,9 @@ For `bash`, `zsh`, and `nu`, it adds a small managed source block to the shell
 rc file. For `fish`, it installs an autoloaded `gw` function file under
 `$XDG_CONFIG_HOME/fish/functions`. If shell integration is already active in the
 current session, `gw setup --install` also sources the generated integration
-immediately. First-time `bash`, `zsh`, and `nu` setup still requires a new shell
-or the session activation command above. Fish can autoload the installed
-function on the next `gw` invocation.
+immediately. If shell integration is not active yet, `gw setup --install` prints
+the exact `source` command to run once in the current shell. New shell sessions
+load the persistent integration automatically.
 
 ## Quick Start
 
@@ -238,7 +238,7 @@ npm pack
 To validate a tarball with a temporary global prefix:
 
 ```bash
-npm install -g --prefix /tmp/gw-prefix ./amadeusdemarzi-git-gw-0.1.0-beta.2.tgz
+npm install -g --prefix /tmp/gw-prefix ./amadeusdemarzi-git-gw-<version>.tgz
 PATH="/tmp/gw-prefix/bin:$PATH" gw --help
 ```
 
@@ -253,7 +253,7 @@ For a local tarball beta:
 ```bash
 bun run pack:smoke
 npm pack
-npm install -g ./amadeusdemarzi-git-gw-0.1.0-beta.2.tgz
+npm install -g ./amadeusdemarzi-git-gw-<version>.tgz
 gw setup
 ```
 
@@ -294,5 +294,7 @@ reachable and that the remote advertises `HEAD`.
 
 Persistent setup succeeded but the command still behaves the same: the shell
 wrapper was not active yet. Open a new shell or run the session activation
-command. In `fish`, the next `gw` invocation should autoload the installed
-function file.
+command printed by `gw setup`. In `fish`, run the printed
+`source ~/.config/fish/functions/gw.fish` command or open a new shell; a shell
+that already resolved `gw` as an external command may not autoload the new
+function until then.

@@ -17,13 +17,25 @@ interface SetupOptions {
   shell?: ShellName;
 }
 
-async function requestShellSource(sourcePath: string): Promise<void> {
+async function requestShellSource(sourcePath: string): Promise<boolean> {
   const sourceFile = process.env.GW_SOURCE_FILE;
   if (!sourceFile) {
-    return;
+    return false;
   }
 
   await writeFile(sourceFile, `${sourcePath}\n`, 'utf8');
+  return true;
+}
+
+function quoteShellPath(path: string): string {
+  return `"${path
+    .replaceAll('\\', '\\\\')
+    .replaceAll('"', '\\"')
+    .replaceAll('$', '\\$')}"`;
+}
+
+function getSourceCommand(path: string): string {
+  return `source ${quoteShellPath(path)}`;
 }
 
 async function promptForInstall(
@@ -88,7 +100,9 @@ export function registerSetupCommand(program: Command): void {
         }
 
         const installResult = await installShellIntegration(shell);
-        await requestShellSource(installResult.initFilePath);
+        const didRequestShellSource = await requestShellSource(
+          installResult.initFilePath
+        );
 
         process.stdout.write('\n');
         process.stdout.write('Installed persistent shell integration:\n');
@@ -107,6 +121,14 @@ export function registerSetupCommand(program: Command): void {
         } else {
           process.stdout.write(
             `  status: ${installResult.rcFileLabel} already up to date\n`
+          );
+        }
+
+        if (!didRequestShellSource) {
+          process.stdout.write('\n');
+          process.stdout.write('Current shell activation:\n');
+          process.stdout.write(
+            `  ${getSourceCommand(installResult.initFilePath)}\n`
           );
         }
       })
