@@ -22,7 +22,7 @@ everything fully tested.
 After the package is published:
 
 ```bash
-npm install -g git-gw
+npm install -g @amadeusdemarzi/git-gw
 gw setup
 ```
 
@@ -232,7 +232,7 @@ npm pack
 To validate a tarball with a temporary global prefix:
 
 ```bash
-npm install -g --prefix /tmp/gw-prefix ./git-gw-0.1.0-beta.0.tgz
+npm install -g --prefix /tmp/gw-prefix ./amadeusdemarzi-git-gw-0.1.0-beta.0.tgz
 PATH="/tmp/gw-prefix/bin:$PATH" gw --help
 ```
 
@@ -247,7 +247,7 @@ For a local tarball beta:
 ```bash
 bun run pack:smoke
 npm pack
-npm install -g ./git-gw-0.1.0-beta.0.tgz
+npm install -g ./amadeusdemarzi-git-gw-0.1.0-beta.0.tgz
 gw setup
 ```
 

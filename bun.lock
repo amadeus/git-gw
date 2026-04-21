@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "git-gw",
+      "name": "@amadeusdemarzi/git-gw",
       "dependencies": {
         "commander": "14.0.3",
         "enquirer": "2.4.1",
