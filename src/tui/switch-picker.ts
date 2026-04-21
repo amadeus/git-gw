@@ -13,12 +13,15 @@ interface SwitchPickerChoice {
 interface EnquirerPromptInternal {
   state: {
     cancelled: boolean;
+    closed?: boolean;
     submitted: boolean;
     size?: number;
   };
   clear(lines?: number): void;
-  close(): Promise<void>;
   emit(event: 'cancel', value: string): boolean;
+  emit(event: 'close'): boolean;
+  removeListener(event: 'close', listener: () => void): this;
+  stop?: () => void;
 }
 
 function normalizeSearchText(value: string): string {
@@ -44,13 +47,35 @@ function formatPickerLabel(
   return `${isCurrent ? '*' : ' '} ${branchName} ${folderName}`;
 }
 
-async function cancelPromptSilently(
+export async function cancelPromptSilently(
   this: EnquirerPromptInternal
 ): Promise<void> {
   this.state.cancelled = true;
   this.state.submitted = true;
   this.clear(this.state.size || 0);
-  await this.close();
+
+  const stop = this.stop;
+  if (stop) {
+    this.removeListener('close', stop);
+    this.stop = undefined;
+
+    try {
+      stop();
+    } catch (error) {
+      if (
+        !(
+          error instanceof Error &&
+          'code' in error &&
+          error.code === 'ERR_USE_AFTER_CLOSE'
+        )
+      ) {
+        throw error;
+      }
+    }
+  }
+
+  this.state.closed = true;
+  this.emit('close');
   this.emit('cancel', '');
 }
 
