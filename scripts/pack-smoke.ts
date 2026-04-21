@@ -3,6 +3,24 @@ import { mkdtemp, mkdir, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+interface PackFile {
+  path: string;
+}
+
+interface PackResult {
+  filename: string;
+  files?: PackFile[];
+}
+
+function parseNpmPackJson(stdout: string): PackResult[] {
+  const trimmedStdout = stdout.trim();
+  const jsonStart = trimmedStdout.lastIndexOf('\n[');
+  const jsonText =
+    jsonStart === -1 ? trimmedStdout : trimmedStdout.slice(jsonStart + 1);
+
+  return JSON.parse(jsonText) as PackResult[];
+}
+
 async function makeTempDir(prefix: string): Promise<string> {
   return mkdtemp(join(tmpdir(), prefix));
 }
@@ -28,10 +46,25 @@ async function createPackedTarball(repoRoot: string): Promise<string> {
     { cwd: repoRoot }
   );
 
-  const parsed = JSON.parse(result.stdout) as Array<{ filename: string }>;
-  const tarballFileName = parsed[0]?.filename;
+  const parsed = parseNpmPackJson(result.stdout);
+  const packageInfo = parsed[0];
+  const tarballFileName = packageInfo?.filename;
   if (!tarballFileName) {
     throw new Error('npm pack did not produce a tarball filename');
+  }
+
+  const packedFiles = new Set(
+    (packageInfo.files || []).map((file) => file.path)
+  );
+  const expectedFiles = new Set(['README.md', 'dist/cli.js', 'package.json']);
+
+  if (
+    packedFiles.size !== expectedFiles.size ||
+    [...expectedFiles].some((path) => !packedFiles.has(path))
+  ) {
+    throw new Error(
+      `unexpected npm pack contents: ${[...packedFiles].sort().join(', ')}`
+    );
   }
 
   return join(packDir, tarballFileName);

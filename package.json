@@ -1,6 +1,6 @@
 {
   "name": "git-gw",
-  "version": "0.1.0",
+  "version": "0.1.0-beta.0",
   "description": "Git worktree project helper CLI",
   "keywords": [
     "cli",
@@ -12,13 +12,14 @@
     "gw": "./dist/cli.js"
   },
   "files": [
-    "dist",
+    "dist/cli.js",
     "README.md"
   ],
   "type": "module",
   "scripts": {
     "dev": "bun run src/cli.ts",
     "build": "tsup",
+    "prepare": "tsup",
     "format": "bun run imports:fix && oxfmt . --write",
     "format:check": "oxfmt . --check",
     "imports:fix": "bun run scripts/fix-relative-imports.ts",
