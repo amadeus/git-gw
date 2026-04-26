@@ -14,6 +14,7 @@ everything fully tested.
 
 - Node.js 18.18 or newer
 - Git
+- GitHub CLI (`gh`) for `gw pr`
 - npm for installation
 - Bun only for repository development
 
@@ -37,8 +38,8 @@ Replace `zsh` with `bash`, `fish`, or `nu` as needed.
 
 ## Shell Integration
 
-Shell integration is required for `gw clone` and `gw switch` to change the
-current shell directory. Without it, the Node CLI can only print the target
+Shell integration is required for `gw clone`, `gw switch`, and `gw pr` to change
+the current shell directory. Without it, the Node CLI can only print the target
 path.
 
 For a current-session setup:
@@ -105,6 +106,12 @@ Switch to an existing branch or create a worktree for it:
 gw switch feature/login
 ```
 
+Check out a GitHub pull request into a `pr_<number>` worktree and switch to it:
+
+```bash
+gw pr 123
+```
+
 Remove a worktree and its local branch:
 
 ```bash
@@ -150,6 +157,7 @@ error instead of guessing.
 ```text
 gw list
 gw switch [--ignore-prefix] [branch]
+gw pr <number>
 gw remove|rm [--force] [--remote] [--ignore-prefix] <branch>
 gw clone [--branch-prefix <prefix>] <project-name> <repo-url>
 gw init [--branch-prefix <prefix>]
@@ -174,6 +182,9 @@ gw help
   `~`, so `feature/login` becomes `feature~login`.
 - `gw switch` first accepts an existing worktree folder name, then checks local
   branches, remote branches, and branch-prefix-aware fallbacks.
+- `gw pr <number>` requires `gh`, reads the PR head branch and owner, creates or
+  reuses a fork remote, checks out local branch `pr_<number>`, and switches to
+  the `pr_<number>` worktree.
 - `gw remove` refuses to remove the primary branch and refuses to remove the
   current worktree while the shell is inside it.
 - Relative `core.hooksPath` directories are copied from the primary worktree to
@@ -279,18 +290,21 @@ Recommended branch/PR beta workflow:
 
 ## Troubleshooting
 
-`gw clone` or `gw switch` prints a path but does not change directories: shell
-integration is not active in the current shell. Run `gw setup`, or run the
-session activation command for your shell.
+`gw clone`, `gw switch`, or `gw pr` prints a path but does not change
+directories: shell integration is not active in the current shell. Run
+`gw setup`, or run the session activation command for your shell.
 
-`command gw switch ...` does not change directories: `command gw` bypasses the
-shell wrapper. Use `gw switch ...`.
+`command gw switch ...` or `command gw pr ...` does not change directories:
+`command gw` bypasses the shell wrapper. Use `gw switch ...` or `gw pr ...`.
 
 `gw switch` without a branch fails in CI or scripts: the picker requires an
 interactive terminal. Pass an explicit branch name.
 
 `gw clone` cannot detect the remote default branch: verify that the repo URL is
 reachable and that the remote advertises `HEAD`.
+
+`gw pr` says GitHub CLI is required: install `gh` from https://cli.github.com/
+and run `gh auth login`, then retry the command.
 
 Persistent setup succeeded but the command still behaves the same: the shell
 wrapper was not active yet. Open a new shell or run the session activation

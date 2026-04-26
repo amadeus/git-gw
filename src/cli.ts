@@ -4,6 +4,7 @@ import { registerCloneCommand } from '@/commands/clone';
 import { registerHelpCommand } from '@/commands/help';
 import { registerInitCommand } from '@/commands/init';
 import { registerListCommand } from '@/commands/list';
+import { registerPrCommand } from '@/commands/pr';
 import { registerRemoveCommand } from '@/commands/remove';
 import { registerSetupCommand } from '@/commands/setup';
 import { registerShellInitCommand } from '@/commands/shell-init';
@@ -18,6 +19,7 @@ program
 
 registerListCommand(program);
 registerSwitchCommand(program);
+registerPrCommand(program);
 registerRemoveCommand(program);
 registerCloneCommand(program);
 registerInitCommand(program);

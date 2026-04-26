@@ -229,6 +229,31 @@ export async function listRemotes(repoPath: string): Promise<string[]> {
     .filter(Boolean);
 }
 
+export async function getRemoteUrl(
+  repoPath: string,
+  remoteName: string
+): Promise<string> {
+  const stdout = await expectGitSuccess(
+    ['config', '--get', `remote.${remoteName}.url`],
+    repoPath
+  );
+
+  const remoteUrl = stdout.trim();
+  if (!remoteUrl) {
+    throw new Error(`remote is missing: ${remoteName}`);
+  }
+
+  return remoteUrl;
+}
+
+export async function addRemote(
+  repoPath: string,
+  remoteName: string,
+  remoteUrl: string
+): Promise<void> {
+  await expectGitSuccess(['remote', 'add', remoteName, remoteUrl], repoPath);
+}
+
 export async function getPreferredRemote(repoPath: string): Promise<string> {
   const remotes = await listRemotes(repoPath);
 

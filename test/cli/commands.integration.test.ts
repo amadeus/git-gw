@@ -1,18 +1,84 @@
 import {
   canonicalPath,
+  commitEmpty,
   createRemoteFixture,
   createWorkDir,
+  makeTempDir,
   pathExists,
   runCli,
   runCliWithCwdCapture,
   runGit,
 } from '@test/helpers';
-import { mkdir } from 'node:fs/promises';
+import { execa } from 'execa';
+import { chmod, mkdir, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { hasGwConfig } from '@/core/config';
 import { branchExists } from '@/core/git';
+
+async function createFakeGh(
+  rootDir: string,
+  prNumber: string,
+  headRefName: string,
+  headRepositoryOwner: string
+): Promise<string> {
+  const binDir = join(rootDir, 'fake-bin');
+  const ghPath = join(binDir, 'gh');
+  const response = JSON.stringify({
+    headRefName,
+    headRepositoryOwner: {
+      login: headRepositoryOwner,
+    },
+  });
+
+  await mkdir(binDir, { recursive: true });
+  await writeFile(
+    ghPath,
+    `#!/bin/sh
+if [ "$1" = "pr" ] && [ "$2" = "view" ] && [ "$3" = "${prNumber}" ]; then
+  printf '%s\n' '${response}'
+  exit 0
+fi
+
+printf 'unexpected gh args: %s\n' "$*" >&2
+exit 1
+`,
+    'utf8'
+  );
+  await chmod(ghPath, 0o755);
+
+  return binDir;
+}
+
+async function createForkRemote(
+  rootDir: string,
+  baseOriginPath: string,
+  headRefName: string
+): Promise<string> {
+  const forkPath = join(rootDir, 'fork.git');
+  const forkSeedPath = join(rootDir, 'fork-seed');
+
+  await runGit(['init', '--bare', forkPath]);
+  await runGit(['clone', baseOriginPath, forkSeedPath]);
+  await runGit(['checkout', '-b', headRefName], { cwd: forkSeedPath });
+  await commitEmpty(forkSeedPath, headRefName);
+  await runGit(['remote', 'add', 'fork', forkPath], { cwd: forkSeedPath });
+  await runGit(['push', '-u', 'fork', headRefName], { cwd: forkSeedPath });
+
+  return forkPath;
+}
+
+async function createPathWithoutGh(): Promise<string> {
+  const binDir = await makeTempDir('gw-no-gh-bin-');
+
+  for (const command of ['bun', 'git']) {
+    const commandPath = (await execa('which', [command])).stdout.trim();
+    await symlink(commandPath, join(binDir, command));
+  }
+
+  return binDir;
+}
 
 describe('CLI integration', () => {
   it('covers clone, list, switch, and remove against a real remote', async () => {
@@ -72,6 +138,147 @@ describe('CLI integration', () => {
     const listResult = await runCli(['list'], { cwd: projectRoot });
     expect(listResult.exitCode).toBe(0);
     expect(listResult.stdout).toContain('./main -> main');
+  }, 60_000);
+
+  it('checks out a GitHub PR into a worktree and captures cwd', async () => {
+    const fixture = await createRemoteFixture([], 'main');
+    const workDir = await createWorkDir(fixture.rootDir);
+    const headRefName = 'feature/pr-checkout';
+    const forkPath = await createForkRemote(
+      fixture.rootDir,
+      fixture.originPath,
+      headRefName
+    );
+    const fakeGhBin = await createFakeGh(
+      fixture.rootDir,
+      '123',
+      headRefName,
+      'contrib'
+    );
+
+    await runCliWithCwdCapture(['clone', 'demo', fixture.originPath], {
+      cwd: workDir,
+    });
+
+    const mainPath = join(workDir, 'demo', 'main');
+    const prPath = join(workDir, 'demo', 'pr_123');
+
+    await runGit(
+      ['remote', 'set-url', 'origin', 'https://example.test/base/repo.git'],
+      { cwd: mainPath }
+    );
+    await runGit(
+      [
+        'config',
+        `url.${forkPath}.insteadOf`,
+        'https://example.test/contrib/repo.git',
+      ],
+      { cwd: mainPath }
+    );
+
+    const prResult = await runCliWithCwdCapture(['pr', '123'], {
+      cwd: mainPath,
+      env: {
+        ...process.env,
+        PATH: `${fakeGhBin}:${process.env.PATH || ''}`,
+      },
+    });
+
+    expect(prResult.result.exitCode).toBe(0);
+    expect(prResult.targetPath).toBe(await canonicalPath(prPath));
+    expect(await pathExists(prPath)).toBe(true);
+
+    const currentBranch = await runGit(['branch', '--show-current'], {
+      cwd: prPath,
+    });
+    expect(currentBranch.stdout).toBe('pr_123');
+
+    const upstream = await runGit(
+      ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'],
+      { cwd: prPath }
+    );
+    expect(upstream.stdout).toBe(`contrib/${headRefName}`);
+
+    const remoteUrl = await runGit(['config', '--get', 'remote.contrib.url'], {
+      cwd: mainPath,
+    });
+    expect(remoteUrl.stdout).toBe('https://example.test/contrib/repo.git');
+  }, 60_000);
+
+  it('reuses origin for a PR branch from the base repository', async () => {
+    const headRefName = 'feature/origin-pr';
+    const fixture = await createRemoteFixture([headRefName], 'main');
+    const workDir = await createWorkDir(fixture.rootDir);
+    const fakeGhBin = await createFakeGh(
+      fixture.rootDir,
+      '124',
+      headRefName,
+      'base'
+    );
+
+    await runCliWithCwdCapture(['clone', 'demo', fixture.originPath], {
+      cwd: workDir,
+    });
+
+    const mainPath = join(workDir, 'demo', 'main');
+    const prPath = join(workDir, 'demo', 'pr_124');
+
+    await runGit(
+      ['remote', 'set-url', 'origin', 'https://example.test/base/repo.git'],
+      { cwd: mainPath }
+    );
+    await runGit(
+      [
+        'config',
+        `url.${fixture.originPath}.insteadOf`,
+        'https://example.test/base/repo.git',
+      ],
+      { cwd: mainPath }
+    );
+
+    const prResult = await runCliWithCwdCapture(['pr', '124'], {
+      cwd: mainPath,
+      env: {
+        ...process.env,
+        PATH: `${fakeGhBin}:${process.env.PATH || ''}`,
+      },
+    });
+
+    expect(prResult.result.exitCode).toBe(0);
+    expect(prResult.targetPath).toBe(await canonicalPath(prPath));
+
+    const upstream = await runGit(
+      ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'],
+      { cwd: prPath }
+    );
+    expect(upstream.stdout).toBe(`origin/${headRefName}`);
+
+    const remotes = await runGit(['remote'], { cwd: mainPath });
+    const remotesStdout =
+      typeof remotes.stdout === 'string' ? remotes.stdout : '';
+    expect(remotesStdout.split(/\r?\n/u).filter(Boolean)).toEqual(['origin']);
+  }, 60_000);
+
+  it('prints setup guidance when gh is missing', async () => {
+    const fixture = await createRemoteFixture([], 'main');
+    const workDir = await createWorkDir(fixture.rootDir);
+    const pathWithoutGh = await createPathWithoutGh();
+
+    await runCliWithCwdCapture(['clone', 'demo', fixture.originPath], {
+      cwd: workDir,
+    });
+
+    const result = await runCli(['pr', '123'], {
+      cwd: join(workDir, 'demo', 'main'),
+      env: {
+        ...process.env,
+        PATH: pathWithoutGh,
+      },
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('GitHub CLI is required for gw pr');
+    expect(result.stderr).toContain('gh auth login');
   }, 60_000);
 
   it('preserves the non-interactive switch error when no branch is provided', async () => {
