@@ -9,12 +9,15 @@ import { registerRemoveCommand } from '@/commands/remove';
 import { registerSetupCommand } from '@/commands/setup';
 import { registerShellInitCommand } from '@/commands/shell-init';
 import { registerSwitchCommand } from '@/commands/switch';
+import { readPackageVersion } from '@/core/package-version';
 
 const program = new Command();
+const packageVersion = await readPackageVersion();
 
 program
   .name('gw')
   .description('Manage git worktree projects')
+  .version(packageVersion, '-v, --version')
   .showHelpAfterError();
 
 registerListCommand(program);

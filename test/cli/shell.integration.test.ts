@@ -20,7 +20,7 @@ beforeAll(async () => {
 });
 
 async function createShellFixture() {
-  const fixture = await createRemoteFixture(['feature/test'], 'main');
+  const fixture = await createRemoteFixture(['feature/test', 'pr_123'], 'main');
   const launcherDir = await makeTempDir('gw-shell-launcher-');
   const workDir = join(fixture.rootDir, 'work');
   const homeDir = await makeTempDir('gw-shell-home-');
@@ -79,7 +79,7 @@ describe('shell wrapper integration', () => {
           '--noprofile',
           '--norc',
           '-c',
-          'set -e; source <(gw shell-init); cd "$1"; gw clone demo "$2" >/dev/null 2>/dev/null; test "$(pwd -P)" = "$1/demo/main"; gw switch feature/test >/dev/null 2>/dev/null; test "$(pwd -P)" = "$1/demo/feature~test"; gw list >/dev/null; printf OK',
+          'set -e; source <(gw shell-init); cd "$1"; gw clone demo "$2" >/dev/null 2>/dev/null; test "$(pwd -P)" = "$1/demo/main"; gw switch feature/test >/dev/null 2>/dev/null; test "$(pwd -P)" = "$1/demo/feature~test"; cd "$1/demo/main"; gw switch pr_123 >/dev/null 2>/dev/null; test "$(pwd -P)" = "$1/demo/pr_123"; cd "$1/demo/main"; gw pr 123 >/dev/null 2>/dev/null; test "$(pwd -P)" = "$1/demo/pr_123"; gw list >/dev/null; printf OK',
           '_',
           fixture.workDir,
           fixture.originPath,
@@ -125,7 +125,7 @@ describe('shell wrapper integration', () => {
         [
           '-f',
           '-c',
-          'set -e; source <(gw shell-init); cd "$1"; gw clone demo "$2" >/dev/null 2>/dev/null; [[ "$(pwd -P)" == "$1/demo/main" ]]; gw switch feature/test >/dev/null 2>/dev/null; [[ "$(pwd -P)" == "$1/demo/feature~test" ]]; gw list >/dev/null; printf OK',
+          'set -e; source <(gw shell-init); cd "$1"; gw clone demo "$2" >/dev/null 2>/dev/null; [[ "$(pwd -P)" == "$1/demo/main" ]]; gw switch feature/test >/dev/null 2>/dev/null; [[ "$(pwd -P)" == "$1/demo/feature~test" ]]; cd "$1/demo/main"; gw switch pr_123 >/dev/null 2>/dev/null; [[ "$(pwd -P)" == "$1/demo/pr_123" ]]; cd "$1/demo/main"; gw pr 123 >/dev/null 2>/dev/null; [[ "$(pwd -P)" == "$1/demo/pr_123" ]]; gw list >/dev/null; printf OK',
           '_',
           fixture.workDir,
           fixture.originPath,
@@ -200,7 +200,7 @@ describe('shell wrapper integration', () => {
         [
           '--no-config',
           '-c',
-          'gw shell-init | source; cd $argv[1]; gw clone demo $argv[2] >/dev/null 2>/dev/null; test (realpath .) = "$argv[1]/demo/main"; or exit 1; gw switch feature/test >/dev/null 2>/dev/null; test (realpath .) = "$argv[1]/demo/feature~test"; or exit 1; gw list >/dev/null; printf OK',
+          'gw shell-init | source; cd $argv[1]; gw clone demo $argv[2] >/dev/null 2>/dev/null; test (realpath .) = "$argv[1]/demo/main"; or exit 1; gw switch feature/test >/dev/null 2>/dev/null; test (realpath .) = "$argv[1]/demo/feature~test"; or exit 1; cd $argv[1]/demo/main; gw switch pr_123 >/dev/null 2>/dev/null; test (realpath .) = "$argv[1]/demo/pr_123"; or exit 1; cd $argv[1]/demo/main; gw pr 123 >/dev/null 2>/dev/null; test (realpath .) = "$argv[1]/demo/pr_123"; or exit 1; gw list >/dev/null; printf OK',
           fixture.workDir,
           fixture.originPath,
         ],
@@ -222,7 +222,7 @@ describe('shell wrapper integration', () => {
         'nu',
         [
           '-c',
-          'gw shell-init | save --force $env.GW_INIT_PATH; source $env.GW_INIT_PATH; cd $env.GW_WORKDIR; gw clone demo $env.GW_ORIGIN | ignore; if ((pwd | get path) != $"($env.GW_WORKDIR)/demo/main") { exit 1 }; gw switch feature/test | ignore; if ((pwd | get path) != $"($env.GW_WORKDIR)/demo/feature~test") { exit 1 }; gw list | ignore',
+          'gw shell-init | save --force $env.GW_INIT_PATH; source $env.GW_INIT_PATH; cd $env.GW_WORKDIR; gw clone demo $env.GW_ORIGIN | ignore; if ((pwd | get path) != $"($env.GW_WORKDIR)/demo/main") { exit 1 }; gw switch feature/test | ignore; if ((pwd | get path) != $"($env.GW_WORKDIR)/demo/feature~test") { exit 1 }; cd $"($env.GW_WORKDIR)/demo/main"; gw switch pr_123 | ignore; if ((pwd | get path) != $"($env.GW_WORKDIR)/demo/pr_123") { exit 1 }; cd $"($env.GW_WORKDIR)/demo/main"; gw pr 123 | ignore; if ((pwd | get path) != $"($env.GW_WORKDIR)/demo/pr_123") { exit 1 }; gw list | ignore',
         ],
         {
           env: {
