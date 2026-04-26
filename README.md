@@ -279,6 +279,52 @@ npm install -g --prefix /tmp/gw-prefix ./amadeusdemarzi-git-gw-<version>.tgz
 PATH="/tmp/gw-prefix/bin:$PATH" gw --help
 ```
 
+## npm Release
+
+Before publishing, update `package.json` to the exact release version you want
+to ship and commit that change. Use prerelease versions such as `0.1.0-beta.5`
+for beta builds.
+
+Run the full verification set from a clean checkout:
+
+```bash
+bun install
+bun run format:check
+bun run lint
+bun run typecheck
+bun run test
+bun run pack:smoke
+```
+
+Check the package contents that npm will publish:
+
+```bash
+npm pack --dry-run
+```
+
+For a beta prerelease, publish with the `beta` dist-tag so it does not replace
+the default `latest` install:
+
+```bash
+npm publish --access public --tag beta
+```
+
+For a stable release, publish to `latest`:
+
+```bash
+npm publish --access public --tag latest
+```
+
+After publishing, verify the npm metadata and install path:
+
+```bash
+npm view @amadeusdemarzi/git-gw version dist-tags
+npm install -g @amadeusdemarzi/git-gw@beta
+gw --help
+```
+
+Use `@latest` instead of `@beta` when verifying a stable release.
+
 ## Beta Distribution
 
 Prerelease builds use semver prerelease versions like `0.1.0-beta.0`,
