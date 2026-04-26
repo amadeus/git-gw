@@ -214,17 +214,43 @@ bun run pack:smoke
 `bun run format` also rewrites internal relative imports to the `@/` alias
 before running `oxfmt`.
 
-Use `npm link` when you want a real `gw` command in your shell while developing:
+## Local npm Link Testing
+
+Use `npm link` when you want to test the built package as a real `gw` command
+from your normal shell without publishing or packing a tarball.
+
+From the repository root:
 
 ```bash
+bun install
 bun run build
 npm link
+gw --help
 ```
 
-After code changes, rebuild before retesting the linked CLI:
+The linked `gw` command points at this checkout's `dist/cli.js`. After source
+changes, rebuild before retesting:
 
 ```bash
 bun run build
+gw --help
+```
+
+To test commands that change directories, activate shell integration in the same
+shell session after linking. For example, in `zsh`:
+
+```bash
+eval "$(gw shell-init --shell zsh)"
+```
+
+Replace `zsh` with `bash`, `fish`, or `nu` as needed; see Shell Integration for
+the shell-specific activation commands. Then test in a disposable project with
+commands such as `gw clone`, `gw switch`, and `gw list`.
+
+When finished, remove the global link:
+
+```bash
+npm unlink -g @amadeusdemarzi/git-gw
 ```
 
 ## Pack Workflow
