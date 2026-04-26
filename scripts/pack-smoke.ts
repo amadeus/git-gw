@@ -159,6 +159,15 @@ async function verifyInstalledCli(installDir: string): Promise<void> {
     env,
   });
 
+  const versionResult = await execa('gw', ['--version'], {
+    cwd: installDir,
+    env,
+  });
+
+  if (!versionResult.stdout.trim()) {
+    throw new Error('gw --version did not print a version');
+  }
+
   await execa(
     'bash',
     [

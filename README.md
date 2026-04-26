@@ -163,6 +163,7 @@ gw clone [--branch-prefix <prefix>] <project-name> <repo-url>
 gw init [--branch-prefix <prefix>]
 gw shell-init [--shell bash|zsh|fish|nu]
 gw setup [--install] [--shell bash|zsh|fish|nu]
+gw --version | gw -v
 gw help
 ```
 

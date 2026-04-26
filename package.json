@@ -1,6 +1,6 @@
 {
   "name": "@amadeusdemarzi/git-gw",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Opinionated CLI for branch-like Git worktree workflows",
   "keywords": [
     "cli",

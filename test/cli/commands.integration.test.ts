@@ -5,17 +5,26 @@ import {
   createWorkDir,
   makeTempDir,
   pathExists,
+  REPO_ROOT,
   runCli,
   runCliWithCwdCapture,
   runGit,
 } from '@test/helpers';
 import { execa } from 'execa';
-import { chmod, mkdir, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { hasGwConfig } from '@/core/config';
 import { branchExists } from '@/core/git';
+
+async function readExpectedPackageVersion(): Promise<string> {
+  const packageJson = JSON.parse(
+    await readFile(join(REPO_ROOT, 'package.json'), 'utf8')
+  ) as { version: string };
+
+  return packageJson.version;
+}
 
 async function createFakeGh(
   rootDir: string,
@@ -81,6 +90,19 @@ async function createPathWithoutGh(): Promise<string> {
 }
 
 describe('CLI integration', () => {
+  it('prints the package version', async () => {
+    const workDir = await makeTempDir('gw-version-');
+    const packageVersion = await readExpectedPackageVersion();
+
+    const longResult = await runCli(['--version'], { cwd: workDir });
+    expect(longResult.exitCode).toBe(0);
+    expect(longResult.stdout).toBe(packageVersion);
+
+    const shortResult = await runCli(['-v'], { cwd: workDir });
+    expect(shortResult.exitCode).toBe(0);
+    expect(shortResult.stdout).toBe(packageVersion);
+  });
+
   it('covers clone, list, switch, and remove against a real remote', async () => {
     const fixture = await createRemoteFixture(['feature/test'], 'main');
     const workDir = await createWorkDir(fixture.rootDir);
