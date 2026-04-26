@@ -358,13 +358,18 @@ Recommended branch/PR beta workflow:
 2. Share either the generated tarball or a Git install command pinned to the
    tested commit SHA.
 3. Have testers run `gw setup` or `eval "$(gw shell-init)"`, then verify
-   `gw clone`, `gw switch`, and `gw list` in a disposable worktree project.
+   `gw clone`, `gw switch`, `gw pr`, and `gw list` in a disposable worktree
+   project.
 
 ## Troubleshooting
 
 `gw clone`, `gw switch`, or `gw pr` prints a path but does not change
 directories: shell integration is not active in the current shell. Run
 `gw setup`, or run the session activation command for your shell.
+
+If this starts after updating `gw`, the current shell may still have older
+generated integration loaded. Run `gw setup --install --shell <shell>`, then
+open a new shell or run the session activation command printed by `gw setup`.
 
 `command gw switch ...` or `command gw pr ...` does not change directories:
 `command gw` bypasses the shell wrapper. Use `gw switch ...` or `gw pr ...`.

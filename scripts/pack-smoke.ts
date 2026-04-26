@@ -122,6 +122,22 @@ async function createRemoteFixture(rootDir: string): Promise<string> {
   );
   await runGit(['push', '-u', 'origin', 'feature/test'], seedPath);
 
+  await runGit(['checkout', '-b', 'pr_123'], seedPath);
+  await runGit(
+    [
+      '-c',
+      'user.name=gw-test',
+      '-c',
+      'user.email=gw-test@example.com',
+      'commit',
+      '--allow-empty',
+      '-m',
+      'pr',
+    ],
+    seedPath
+  );
+  await runGit(['push', '-u', 'origin', 'pr_123'], seedPath);
+
   return originPath;
 }
 
@@ -149,7 +165,7 @@ async function verifyInstalledCli(installDir: string): Promise<void> {
       '--noprofile',
       '--norc',
       '-c',
-      'set -e; source <(gw shell-init); cd "$1"; gw clone demo "$2" >/dev/null 2>/dev/null; test "$(pwd -P)" = "$1/demo/main"; gw switch feature/test >/dev/null 2>/dev/null; test "$(pwd -P)" = "$1/demo/feature~test"; gw list >/dev/null',
+      'set -e; source <(gw shell-init); cd "$1"; gw clone demo "$2" >/dev/null 2>/dev/null; test "$(pwd -P)" = "$1/demo/main"; gw switch feature/test >/dev/null 2>/dev/null; test "$(pwd -P)" = "$1/demo/feature~test"; cd "$1/demo/main"; gw switch pr_123 >/dev/null 2>/dev/null; test "$(pwd -P)" = "$1/demo/pr_123"; cd "$1/demo/main"; gw pr 123 >/dev/null 2>/dev/null; test "$(pwd -P)" = "$1/demo/pr_123"; gw list >/dev/null',
       '_',
       resolvedWorkDir,
       originPath,

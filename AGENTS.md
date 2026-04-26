@@ -37,8 +37,8 @@ Project conventions to keep updated as the repo evolves.
   worktree folder layout.
 - `gw switch`, `gw clone`, and `gw pr` are the commands that need shell-side
   directory changes. They communicate target directories through `GW_CWD_FILE`;
-  keep the shell wrappers in `src/core/shell.ts` synchronized if that command
-  set changes.
+  shell wrappers in `src/core/shell.ts` pass handoff files to every command so
+  newly added handoff commands do not require another static wrapper list.
 - Shell integration targets `bash`, `zsh`, `fish`, and `nu`. Missing shells may
   cause local smoke tests to skip, not fail.
 

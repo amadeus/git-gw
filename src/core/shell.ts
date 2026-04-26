@@ -273,189 +273,122 @@ export function getSessionActivationCommand(shell: ShellName): string {
 }
 
 function renderBashLikeShellInit(): string {
-  return `__gw_needs_cd() {
-  case "$1" in
-    switch|clone|pr) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-__gw_needs_source() {
-  case "$1" in
-    setup) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-gw() {
-  if [[ $# -gt 0 ]] && __gw_needs_cd "$1"; then
-    local _gw_tmpfile
-    _gw_tmpfile="$(mktemp "\${TMPDIR:-/tmp}/gw.XXXXXX")" || return 1
-
-    GW_CWD_FILE="$_gw_tmpfile" command gw "$@"
-    local _gw_status=$?
-
-    if [[ $_gw_status -eq 0 && -s "$_gw_tmpfile" ]]; then
-      local _gw_target
-      IFS= read -r _gw_target < "$_gw_tmpfile"
-      if [[ -n "$_gw_target" ]]; then
-        builtin cd "$_gw_target" || _gw_status=$?
-      fi
-    fi
-
-    rm -f "$_gw_tmpfile"
-    return $_gw_status
+  return `gw() {
+  if [[ $# -eq 0 ]]; then
+    command gw
+    return
   fi
 
-  if [[ $# -gt 0 ]] && __gw_needs_source "$1"; then
-    local _gw_tmpfile
-    _gw_tmpfile="$(mktemp "\${TMPDIR:-/tmp}/gw.XXXXXX")" || return 1
+  local _gw_cwd_file _gw_source_file _gw_status
+  _gw_cwd_file="$(mktemp "\${TMPDIR:-/tmp}/gw-cwd.XXXXXX")" || return 1
+  _gw_source_file="$(mktemp "\${TMPDIR:-/tmp}/gw-source.XXXXXX")" || {
+    rm -f "$_gw_cwd_file"
+    return 1
+  }
 
-    GW_SOURCE_FILE="$_gw_tmpfile" command gw "$@"
-    local _gw_status=$?
+  GW_CWD_FILE="$_gw_cwd_file" GW_SOURCE_FILE="$_gw_source_file" command gw "$@"
+  _gw_status=$?
 
-    if [[ $_gw_status -eq 0 && -s "$_gw_tmpfile" ]]; then
-      local _gw_source
-      IFS= read -r _gw_source < "$_gw_tmpfile"
-      if [[ -n "$_gw_source" && -f "$_gw_source" ]]; then
-        source "$_gw_source" || _gw_status=$?
-      fi
+  if [[ $_gw_status -eq 0 && -s "$_gw_source_file" ]]; then
+    local _gw_source
+    IFS= read -r _gw_source < "$_gw_source_file"
+    if [[ -n "$_gw_source" && -f "$_gw_source" ]]; then
+      source "$_gw_source" || _gw_status=$?
     fi
-
-    rm -f "$_gw_tmpfile"
-    return $_gw_status
   fi
 
-  command gw "$@"
+  if [[ $_gw_status -eq 0 && -s "$_gw_cwd_file" ]]; then
+    local _gw_target
+    IFS= read -r _gw_target < "$_gw_cwd_file"
+    if [[ -n "$_gw_target" ]]; then
+      builtin cd "$_gw_target" || _gw_status=$?
+    fi
+  fi
+
+  rm -f "$_gw_cwd_file" "$_gw_source_file"
+  return $_gw_status
 }
 `;
 }
 
 function renderFishShellInit(): string {
-  return `function __gw_needs_cd
-    switch $argv[1]
-        case switch clone pr
-            return 0
-        case '*'
-            return 1
-    end
-end
-
-function __gw_needs_source
-    switch $argv[1]
-        case setup
-            return 0
-        case '*'
-            return 1
-    end
-end
-
-function gw
-    if test (count $argv) -gt 0; and __gw_needs_cd $argv[1]
-        set -l tmpdir /tmp
-        if set -q TMPDIR
-            set tmpdir $TMPDIR
-        end
-
-        set -l tmpfile (mktemp "$tmpdir/gw.XXXXXX")
-        or return 1
-
-        env GW_CWD_FILE="$tmpfile" command gw $argv
-        set -l _gw_status $status
-
-        if test $_gw_status -eq 0; and test -s "$tmpfile"
-            set -l target (string trim -- (command cat -- "$tmpfile"))
-            if test -n "$target"
-                cd "$target"
-                or set _gw_status $status
-            end
-        end
-
-        command rm -f -- "$tmpfile"
-        return $_gw_status
+  return `function gw
+    if test (count $argv) -eq 0
+        command gw
+        return $status
     end
 
-    if test (count $argv) -gt 0; and __gw_needs_source $argv[1]
-        set -l tmpdir /tmp
-        if set -q TMPDIR
-            set tmpdir $TMPDIR
-        end
-
-        set -l tmpfile (mktemp "$tmpdir/gw.XXXXXX")
-        or return 1
-
-        env GW_SOURCE_FILE="$tmpfile" command gw $argv
-        set -l _gw_status $status
-
-        if test $_gw_status -eq 0; and test -s "$tmpfile"
-            set -l source_path (string trim -- (command cat -- "$tmpfile"))
-            if test -n "$source_path"; and test -f "$source_path"
-                source "$source_path"
-                or set _gw_status $status
-            end
-        end
-
-        command rm -f -- "$tmpfile"
-        return $_gw_status
+    set -l tmpdir /tmp
+    if set -q TMPDIR
+        set tmpdir $TMPDIR
     end
 
-    command gw $argv
+    set -l cwd_file (mktemp "$tmpdir/gw-cwd.XXXXXX")
+    or return 1
+
+    set -l source_file (mktemp "$tmpdir/gw-source.XXXXXX")
+    or begin
+        command rm -f -- "$cwd_file"
+        return 1
+    end
+
+    env GW_CWD_FILE="$cwd_file" GW_SOURCE_FILE="$source_file" command gw $argv
+    set -l _gw_status $status
+
+    if test $_gw_status -eq 0; and test -s "$source_file"
+        set -l source_path (string trim -- (command cat -- "$source_file"))
+        if test -n "$source_path"; and test -f "$source_path"
+            source "$source_path"
+            or set _gw_status $status
+        end
+    end
+
+    if test $_gw_status -eq 0; and test -s "$cwd_file"
+        set -l target (string trim -- (command cat -- "$cwd_file"))
+        if test -n "$target"
+            cd "$target"
+            or set _gw_status $status
+        end
+    end
+
+    command rm -f -- "$cwd_file" "$source_file"
+    return $_gw_status
 end
 `;
 }
 
 function renderNuShellInit(): string {
-  return `def __gw_needs_cd [cmd: string] {
-  $cmd in ['switch', 'clone', 'pr']
-}
-
-def __gw_needs_source [cmd: string] {
-  $cmd == 'setup'
-}
-
-def --env gw [...args] {
+  return `def --env gw [...args] {
   if (($args | length) == 0) {
     ^gw
     return
   }
 
-  let cmd = ($args | first)
-
-  if not (__gw_needs_cd $cmd) and not (__gw_needs_source $cmd) {
-    ^gw ...$args
-    return
-  }
-
   let tmpdir = ($env.TMPDIR? | default '/tmp')
-  let tmpfile = (^mktemp $"($tmpdir)/gw.XXXXXX" | str trim)
+  let cwd_file = (^mktemp $"($tmpdir)/gw-cwd.XXXXXX" | str trim)
+  let source_file = (^mktemp $"($tmpdir)/gw-source.XXXXXX" | str trim)
 
-  let handoff_env = if (__gw_needs_cd $cmd) {
-    { GW_CWD_FILE: $tmpfile }
-  } else {
-    { GW_SOURCE_FILE: $tmpfile }
-  }
-
-  with-env $handoff_env {
+  with-env { GW_CWD_FILE: $cwd_file, GW_SOURCE_FILE: $source_file } {
     ^gw ...$args
   }
 
   let status = ($env.LAST_EXIT_CODE? | default 0)
 
-  if ($status == 0) and (__gw_needs_cd $cmd) and ($tmpfile | path exists) {
-    let target = (open --raw $tmpfile | str trim)
+  if ($status == 0) and ($source_file | path exists) {
+    let source_path = (open --raw $source_file | str trim)
+    if ($source_path != '') and ($source_path | path exists) {
+      source $source_path
+    }
+  }
+
+  if ($status == 0) and ($cwd_file | path exists) {
+    let target = (open --raw $cwd_file | str trim)
     if $target != '' {
       cd $target
     }
   }
 
-  if ($status == 0) and (__gw_needs_source $cmd) and ($tmpfile | path exists) {
-    let source_file = (open --raw $tmpfile | str trim)
-    if ($source_file != '') and ($source_file | path exists) {
-      source $source_file
-    }
-  }
-
-  ^rm -f $tmpfile
+  ^rm -f $cwd_file $source_file
   load-env { LAST_EXIT_CODE: $status }
 }
 `;
