@@ -3,7 +3,7 @@ import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
-export const DIRECTORY_CHANGE_COMMANDS = ['switch', 'clone'] as const;
+export const DIRECTORY_CHANGE_COMMANDS = ['switch', 'clone', 'pr'] as const;
 export const SHELL_NAMES = ['bash', 'zsh', 'fish', 'nu'] as const;
 
 export type ShellName = 'bash' | 'zsh' | 'fish' | 'nu';
@@ -275,7 +275,7 @@ export function getSessionActivationCommand(shell: ShellName): string {
 function renderBashLikeShellInit(): string {
   return `__gw_needs_cd() {
   case "$1" in
-    switch|clone) return 0 ;;
+    switch|clone|pr) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -334,7 +334,7 @@ gw() {
 function renderFishShellInit(): string {
   return `function __gw_needs_cd
     switch $argv[1]
-        case switch clone
+        case switch clone pr
             return 0
         case '*'
             return 1
@@ -406,7 +406,7 @@ end
 
 function renderNuShellInit(): string {
   return `def __gw_needs_cd [cmd: string] {
-  $cmd in ['switch', 'clone']
+  $cmd in ['switch', 'clone', 'pr']
 }
 
 def __gw_needs_source [cmd: string] {

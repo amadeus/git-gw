@@ -35,10 +35,10 @@ Project conventions to keep updated as the repo evolves.
 
 - Preserve compatibility with existing `.gw_project` files and the `flat-tilde`
   worktree folder layout.
-- `gw switch` and `gw clone` are the commands that need shell-side directory
-  changes. They communicate target directories through `GW_CWD_FILE`; keep the
-  shell wrappers in `src/core/shell.ts` synchronized if that command set
-  changes.
+- `gw switch`, `gw clone`, and `gw pr` are the commands that need shell-side
+  directory changes. They communicate target directories through `GW_CWD_FILE`;
+  keep the shell wrappers in `src/core/shell.ts` synchronized if that command
+  set changes.
 - Shell integration targets `bash`, `zsh`, `fish`, and `nu`. Missing shells may
   cause local smoke tests to skip, not fail.
 
