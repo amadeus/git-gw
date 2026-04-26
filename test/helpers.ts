@@ -140,6 +140,9 @@ export async function createRemoteFixture(
   await commitEmpty(seedPath, 'init');
   await runGit(['remote', 'add', 'origin', originPath], { cwd: seedPath });
   await runGit(['push', '-u', 'origin', mainBranch], { cwd: seedPath });
+  await runGit(['symbolic-ref', 'HEAD', `refs/heads/${mainBranch}`], {
+    cwd: originPath,
+  });
 
   for (const branchName of extraBranches) {
     await runGit(['checkout', '-b', branchName], { cwd: seedPath });
