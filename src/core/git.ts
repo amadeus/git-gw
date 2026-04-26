@@ -234,7 +234,7 @@ export async function getRemoteUrl(
   remoteName: string
 ): Promise<string> {
   const stdout = await expectGitSuccess(
-    ['remote', 'get-url', remoteName],
+    ['config', '--get', `remote.${remoteName}.url`],
     repoPath
   );
 
