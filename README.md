@@ -181,8 +181,10 @@ gw help
     during branch resolution and strip from folder names.
 - Worktree folders use the existing `flat-tilde` layout: branch slashes become
   `~`, so `feature/login` becomes `feature~login`.
-- `gw switch` first accepts an existing worktree folder name, then checks local
-  branches, remote branches, and branch-prefix-aware fallbacks.
+- `gw switch` treats explicit prefixed names as exact branch names. When a
+  branch prefix is configured and an unprefixed name is provided, it checks both
+  the prefixed and raw branch names locally and remotely, prompts if both exist,
+  and creates the prefixed variant if neither exists.
 - `gw pr <number>` requires `gh`, reads the PR head branch and owner, creates or
   reuses a fork remote, checks out local branch `pr_<number>`, and switches to
   the `pr_<number>` worktree.

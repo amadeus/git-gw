@@ -179,6 +179,62 @@ describe('CLI integration', () => {
     expect(upstream.stdout).toBe(`origin/${branchName}`);
   }, 60_000);
 
+  it('uses a prefixed folder name when the stripped folder has another branch', async () => {
+    const prefixedBranch = 'amadeus/topic';
+    const fixture = await createRemoteFixture([prefixedBranch], 'main');
+    const workDir = await createWorkDir(fixture.rootDir);
+
+    await runCliWithCwdCapture(
+      ['clone', '--branch-prefix', 'amadeus/', 'demo', fixture.originPath],
+      { cwd: workDir }
+    );
+
+    const mainPath = join(workDir, 'demo', 'main');
+    const rawPath = join(workDir, 'demo', 'topic');
+    const prefixedPath = join(workDir, 'demo', 'amadeus~topic');
+
+    const rawSwitch = await runCliWithCwdCapture(
+      ['switch', '--ignore-prefix', 'topic'],
+      { cwd: mainPath }
+    );
+    expect(rawSwitch.result.exitCode).toBe(0);
+    expect(rawSwitch.targetPath).toBe(await canonicalPath(rawPath));
+
+    const prefixedSwitch = await runCliWithCwdCapture(
+      ['switch', prefixedBranch],
+      { cwd: mainPath }
+    );
+    expect(prefixedSwitch.result.exitCode).toBe(0);
+    expect(prefixedSwitch.targetPath).toBe(await canonicalPath(prefixedPath));
+
+    const currentBranch = await runGit(['branch', '--show-current'], {
+      cwd: prefixedPath,
+    });
+    expect(currentBranch.stdout).toBe(prefixedBranch);
+  }, 60_000);
+
+  it('reports ambiguous prefixed and unprefixed switch matches', async () => {
+    const fixture = await createRemoteFixture(
+      ['amadeus/conflict', 'conflict'],
+      'main'
+    );
+    const workDir = await createWorkDir(fixture.rootDir);
+
+    await runCliWithCwdCapture(
+      ['clone', '--branch-prefix', 'amadeus/', 'demo', fixture.originPath],
+      { cwd: workDir }
+    );
+
+    const result = await runCli(['switch', 'conflict'], {
+      cwd: join(workDir, 'demo', 'main'),
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('multiple matching branches found');
+    expect(result.stderr).toContain('amadeus/conflict');
+    expect(result.stderr).toContain('conflict');
+  }, 60_000);
+
   it('initializes a manually arranged child worktree layout', async () => {
     const fixture = await createRemoteFixture([], 'main');
     const projectRoot = join(fixture.rootDir, 'manual-project');
