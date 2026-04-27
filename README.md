@@ -118,6 +118,12 @@ Remove a worktree and its local branch:
 gw remove feature/login
 ```
 
+Remove only the worktree and keep the local branch:
+
+```bash
+gw remove --worktree feature/login
+```
+
 Remove with a remote branch delete:
 
 ```bash
@@ -158,7 +164,7 @@ error instead of guessing.
 gw list
 gw switch [--ignore-prefix] [branch]
 gw pr <number>
-gw remove|rm [--force] [--remote] [--ignore-prefix] <branch>
+gw remove|rm [--force] [--remote] [-w|--worktree] [--ignore-prefix] <branch>
 gw clone [--branch-prefix <prefix>] <project-name> <repo-url>
 gw init [--branch-prefix <prefix>]
 gw shell-init [--shell bash|zsh|fish|nu]
@@ -189,7 +195,8 @@ gw help
   reuses a fork remote, checks out local branch `pr_<number>`, and switches to
   the `pr_<number>` worktree.
 - `gw remove` refuses to remove the primary branch and refuses to remove the
-  current worktree while the shell is inside it.
+  current worktree while the shell is inside it. Use `--worktree` or `-w` to
+  remove only the worktree while keeping the local branch.
 - Relative `core.hooksPath` directories are copied from the primary worktree to
   newly created worktrees when possible.
 - The npm package ships a Node CLI plus shell wrappers for `bash`, `zsh`,
