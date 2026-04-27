@@ -146,6 +146,39 @@ describe('CLI integration', () => {
     await expect(branchExists(mainPath, 'feature/test')).resolves.toBe(false);
   }, 60_000);
 
+  it('switches to prefixed remote branches by unprefixed name', async () => {
+    const branchName = 'amadeus/diffs-improved-line-selection';
+    const fixture = await createRemoteFixture([branchName], 'main');
+    const workDir = await createWorkDir(fixture.rootDir);
+
+    await runCliWithCwdCapture(
+      ['clone', '--branch-prefix', 'amadeus/', 'demo', fixture.originPath],
+      { cwd: workDir }
+    );
+
+    const mainPath = join(workDir, 'demo', 'main');
+    const targetPath = join(workDir, 'demo', 'diffs-improved-line-selection');
+    const switchResult = await runCliWithCwdCapture(
+      ['switch', 'diffs-improved-line-selection'],
+      { cwd: mainPath }
+    );
+
+    expect(switchResult.result.exitCode).toBe(0);
+    expect(switchResult.targetPath).toBe(await canonicalPath(targetPath));
+    expect(await pathExists(targetPath)).toBe(true);
+
+    const currentBranch = await runGit(['branch', '--show-current'], {
+      cwd: targetPath,
+    });
+    expect(currentBranch.stdout).toBe(branchName);
+
+    const upstream = await runGit(
+      ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'],
+      { cwd: targetPath }
+    );
+    expect(upstream.stdout).toBe(`origin/${branchName}`);
+  }, 60_000);
+
   it('initializes a manually arranged child worktree layout', async () => {
     const fixture = await createRemoteFixture([], 'main');
     const projectRoot = join(fixture.rootDir, 'manual-project');

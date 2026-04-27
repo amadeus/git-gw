@@ -12,6 +12,7 @@ import {
   detectRemoteHeadFromRepo,
   detectRemoteHeadFromUrl,
   getPreferredRemote,
+  remoteBranchExists,
   syncRelativeHooksPath,
 } from '@/core/git';
 
@@ -45,6 +46,17 @@ describe('git helpers', () => {
     await expect(getPreferredRemote(singleRemoteRepo)).resolves.toBe(
       'upstream'
     );
+  });
+
+  it('checks remote branch refs exactly', async () => {
+    const fixture = await createRemoteFixture(['users/alice'], 'main');
+
+    await expect(
+      remoteBranchExists(fixture.seedPath, 'origin', 'users/alice')
+    ).resolves.toBe(true);
+    await expect(
+      remoteBranchExists(fixture.seedPath, 'origin', 'alice')
+    ).resolves.toBe(false);
   });
 
   it('syncs a relative hooks path into a new worktree', async () => {

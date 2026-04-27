@@ -73,6 +73,7 @@ export function registerSwitchCommand(program: Command): void {
           }
 
           const remoteName = getRemoteName(context.config);
+          const branchPrefix = getBranchPrefix(context.config);
           let resolvedBranch: string;
           let remoteStartRef: string | undefined;
 
@@ -96,6 +97,16 @@ export function registerSwitchCommand(program: Command): void {
             }
 
             resolvedBranch = branchChoice;
+            if (
+              !(await branchExists(context.anchorRepo, resolvedBranch)) &&
+              (await remoteBranchExists(
+                context.anchorRepo,
+                remoteName,
+                resolvedBranch
+              ))
+            ) {
+              remoteStartRef = `${remoteName}/${resolvedBranch}`;
+            }
           }
 
           const existingWorktree = findWorktreeForBranch(
@@ -107,7 +118,6 @@ export function registerSwitchCommand(program: Command): void {
             return;
           }
 
-          const branchPrefix = getBranchPrefix(context.config);
           const folderName = encodeBranchPath(resolvedBranch, branchPrefix);
           const targetPath = join(context.projectRoot, folderName);
 
