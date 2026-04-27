@@ -5,7 +5,9 @@ import { basename, join, resolve } from 'node:path';
 
 import {
   resolveBranchName,
+  resolveSwitchBranchName,
   type BranchResolutionCandidate,
+  type SwitchBranchResolutionCandidate,
 } from '@/core/branches';
 import {
   getBranchPrefix,
@@ -19,7 +21,7 @@ import {
   isPathInside,
   resolvePath,
 } from '@/core/project';
-import { listWorktrees } from '@/core/worktrees';
+import { listWorktrees, type WorktreeEntry } from '@/core/worktrees';
 
 export interface ProjectContext {
   projectRoot: string;
@@ -80,6 +82,25 @@ export async function loadProjectContext(
 
 export function isInteractiveTerminal(): boolean {
   return Boolean(process.stdin.isTTY && process.stdout.isTTY);
+}
+
+export function getSelectedChoiceValue<T>(
+  choiceValues: T[],
+  selected: unknown
+): T {
+  if (typeof selected === 'string') {
+    const selectedIndex = Number(selected);
+    if (
+      Number.isInteger(selectedIndex) &&
+      String(selectedIndex) === selected &&
+      selectedIndex >= 0 &&
+      selectedIndex < choiceValues.length
+    ) {
+      return choiceValues[selectedIndex];
+    }
+  }
+
+  return selected as T;
 }
 
 export async function pathExists(path: string): Promise<boolean> {
@@ -150,7 +171,7 @@ async function selectValue<T>(
   }
 
   const initial = choices.findIndex((choice) => choice.initial);
-  const enquirer = new Enquirer<{ selected: T }>();
+  const enquirer = new Enquirer<{ selected: unknown }>();
 
   try {
     const answer = await enquirer.prompt({
@@ -166,7 +187,10 @@ async function selectValue<T>(
       })),
     });
 
-    return answer.selected;
+    return getSelectedChoiceValue(
+      choices.map((choice) => choice.value),
+      answer.selected
+    );
   } catch (error) {
     if (error == null || error === '') {
       return null;
@@ -178,6 +202,23 @@ async function selectValue<T>(
 
 function formatBranchCandidate(candidate: BranchResolutionCandidate): string {
   return `${candidate.branchName} -> ${candidate.worktreePath || 'no worktree'}`;
+}
+
+function formatSwitchBranchCandidate(
+  candidate: SwitchBranchResolutionCandidate
+): string {
+  const details: string[] = [];
+  if (candidate.local) {
+    details.push('local');
+  }
+  if (candidate.remote) {
+    details.push('remote');
+  }
+  if (candidate.worktreePath) {
+    details.push(`worktree: ${candidate.worktreePath}`);
+  }
+
+  return `${candidate.branchName} -> ${details.join(', ') || 'new branch'}`;
 }
 
 export async function resolveBranchWithPrompt(
@@ -213,6 +254,47 @@ export async function resolveBranchWithPrompt(
     resolution.candidates.map((candidate) => ({
       label: formatBranchCandidate(candidate),
       value: candidate.branchName,
+      initial: candidate.worktreePath != null,
+    }))
+  );
+}
+
+export async function resolveSwitchBranchWithPrompt(
+  context: ProjectContext,
+  rawBranch: string,
+  ignorePrefix: boolean,
+  remoteName: string,
+  worktrees: WorktreeEntry[]
+): Promise<SwitchBranchResolutionCandidate | null> {
+  const resolution = await resolveSwitchBranchName({
+    repoPath: context.anchorRepo,
+    rawBranch,
+    remoteName,
+    branchPrefix: getBranchPrefix(context.config),
+    ignorePrefix,
+    worktrees,
+  });
+
+  if (resolution.status === 'resolved') {
+    return resolution.candidate;
+  }
+
+  if (!isInteractiveTerminal()) {
+    printGwError('multiple matching branches found:');
+    for (const candidate of resolution.candidates) {
+      process.stderr.write(`  ${formatSwitchBranchCandidate(candidate)}\n`);
+    }
+
+    throw new Error(
+      'rerun with an explicit prefixed branch name or --ignore-prefix'
+    );
+  }
+
+  return selectValue(
+    'Choose branch',
+    resolution.candidates.map((candidate) => ({
+      label: formatSwitchBranchCandidate(candidate),
+      value: candidate,
       initial: candidate.worktreePath != null,
     }))
   );

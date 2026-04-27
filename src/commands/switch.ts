@@ -8,15 +8,14 @@ import {
   pathExists,
   printGwError,
   requestDirectoryChange,
-  resolveBranchWithPrompt,
+  resolveSwitchBranchWithPrompt,
 } from '@/commands/shared';
-import { encodeBranchPath } from '@/core/branches';
+import { getSwitchTargetFolderName } from '@/core/branches';
 import { getBranchPrefix, getRemoteName } from '@/core/config';
 import {
   addWorktree,
   branchExists,
   fetchRemoteBranchRef,
-  remoteBranchExists,
   setBranchUpstream,
   syncRelativeHooksPath,
 } from '@/core/git';
@@ -63,40 +62,33 @@ export function registerSwitchCommand(program: Command): void {
           }
 
           const worktrees = await listWorktrees(context.anchorRepo);
-          const folderWorktree = findWorktreeForFolderName(
-            worktrees,
-            rawBranch
-          );
-          if (folderWorktree) {
-            await requestDirectoryChange(folderWorktree);
-            return;
+          if (rawBranch.includes('~')) {
+            const folderWorktree = findWorktreeForFolderName(
+              worktrees,
+              rawBranch
+            );
+            if (folderWorktree) {
+              await requestDirectoryChange(folderWorktree);
+              return;
+            }
           }
 
           const remoteName = getRemoteName(context.config);
-          let resolvedBranch: string;
-          let remoteStartRef: string | undefined;
+          const branchPrefix = getBranchPrefix(context.config);
+          const branchChoice = await resolveSwitchBranchWithPrompt(
+            context,
+            rawBranch,
+            ignorePrefix,
+            remoteName,
+            worktrees
+          );
 
-          if (await branchExists(context.anchorRepo, rawBranch)) {
-            resolvedBranch = rawBranch;
-          } else if (
-            await remoteBranchExists(context.anchorRepo, remoteName, rawBranch)
-          ) {
-            resolvedBranch = rawBranch;
-            remoteStartRef = `${remoteName}/${rawBranch}`;
-          } else {
-            const branchChoice = await resolveBranchWithPrompt(
-              context,
-              rawBranch,
-              ignorePrefix
-            );
-
-            if (!branchChoice) {
-              process.exitCode = 1;
-              return;
-            }
-
-            resolvedBranch = branchChoice;
+          if (!branchChoice) {
+            process.exitCode = 1;
+            return;
           }
+
+          const resolvedBranch = branchChoice.branchName;
 
           const existingWorktree = findWorktreeForBranch(
             worktrees,
@@ -107,8 +99,11 @@ export function registerSwitchCommand(program: Command): void {
             return;
           }
 
-          const branchPrefix = getBranchPrefix(context.config);
-          const folderName = encodeBranchPath(resolvedBranch, branchPrefix);
+          const folderName = getSwitchTargetFolderName(
+            resolvedBranch,
+            branchPrefix,
+            worktrees
+          );
           const targetPath = join(context.projectRoot, folderName);
 
           if (await pathExists(targetPath)) {
@@ -119,7 +114,8 @@ export function registerSwitchCommand(program: Command): void {
             await addWorktree(context.anchorRepo, targetPath, {
               branchName: resolvedBranch,
             });
-          } else if (remoteStartRef) {
+          } else if (branchChoice.remote) {
+            const remoteStartRef = `${remoteName}/${resolvedBranch}`;
             await fetchRemoteBranchRef(
               context.anchorRepo,
               remoteName,

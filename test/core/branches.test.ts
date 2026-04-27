@@ -1,12 +1,24 @@
 import { createRemoteFixture, runGit } from '@test/helpers';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
   encodeBranchPath,
   findSuffixBranchCandidates,
+  getSwitchTargetFolderName,
   resolveBranchName,
+  resolveSwitchBranchName,
   stripBranchPrefix,
 } from '@/core/branches';
+
+async function cloneFixture(
+  originPath: string,
+  rootDir: string
+): Promise<string> {
+  const clonePath = join(rootDir, 'clone');
+  await runGit(['clone', originPath, clonePath]);
+  return clonePath;
+}
 
 describe('branch helpers', () => {
   it('strips a configured branch prefix when present', () => {
@@ -28,6 +40,176 @@ describe('branch helpers', () => {
         'test'
       )
     ).toEqual(['foo/test', 'bar/test']);
+  });
+
+  it('uses the full prefixed branch name when the stripped folder is occupied', () => {
+    expect(getSwitchTargetFolderName('users/alice', 'users/', [])).toBe(
+      'alice'
+    );
+    expect(
+      getSwitchTargetFolderName('users/alice', 'users/', [
+        { branchName: 'alice', path: '/tmp/alice' },
+      ])
+    ).toBe('users~alice');
+    expect(
+      getSwitchTargetFolderName('alice', 'users/', [
+        { branchName: 'alice', path: '/tmp/alice' },
+      ])
+    ).toBe('alice');
+  });
+});
+
+describe('resolveSwitchBranchName', () => {
+  it('only considers an explicit prefixed branch name', async () => {
+    const fixture = await createRemoteFixture(['users/alice', 'alice'], 'main');
+    const clonePath = await cloneFixture(fixture.originPath, fixture.rootDir);
+
+    const result = await resolveSwitchBranchName({
+      repoPath: clonePath,
+      rawBranch: 'users/alice',
+      remoteName: 'origin',
+      branchPrefix: 'users/',
+    });
+
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') {
+      throw new Error('expected resolved branch');
+    }
+    expect(result.candidate.branchName).toBe('users/alice');
+    expect(result.candidate.local).toBe(false);
+    expect(result.candidate.remote).toBe(true);
+  });
+
+  it('does not use suffix matching when no prefix is configured', async () => {
+    const fixture = await createRemoteFixture(['feature/test'], 'main');
+
+    const result = await resolveSwitchBranchName({
+      repoPath: fixture.seedPath,
+      rawBranch: 'test',
+      remoteName: 'origin',
+    });
+
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') {
+      throw new Error('expected resolved branch');
+    }
+    expect(result.candidate.branchName).toBe('test');
+    expect(result.candidate.local).toBe(false);
+    expect(result.candidate.remote).toBe(false);
+  });
+
+  it('uses the prefixed branch when it is the only matching existing branch', async () => {
+    const fixture = await createRemoteFixture(['users/alice'], 'main');
+    const clonePath = await cloneFixture(fixture.originPath, fixture.rootDir);
+
+    const result = await resolveSwitchBranchName({
+      repoPath: clonePath,
+      rawBranch: 'alice',
+      remoteName: 'origin',
+      branchPrefix: 'users/',
+    });
+
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') {
+      throw new Error('expected resolved branch');
+    }
+    expect(result.candidate.branchName).toBe('users/alice');
+    expect(result.candidate.local).toBe(false);
+    expect(result.candidate.remote).toBe(true);
+  });
+
+  it('uses the unprefixed branch when it is the only matching existing branch', async () => {
+    const fixture = await createRemoteFixture(['alice'], 'main');
+    const clonePath = await cloneFixture(fixture.originPath, fixture.rootDir);
+
+    const result = await resolveSwitchBranchName({
+      repoPath: clonePath,
+      rawBranch: 'alice',
+      remoteName: 'origin',
+      branchPrefix: 'users/',
+    });
+
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') {
+      throw new Error('expected resolved branch');
+    }
+    expect(result.candidate.branchName).toBe('alice');
+    expect(result.candidate.local).toBe(false);
+    expect(result.candidate.remote).toBe(true);
+  });
+
+  it('creates the prefixed branch when neither candidate exists', async () => {
+    const fixture = await createRemoteFixture([], 'main');
+
+    const result = await resolveSwitchBranchName({
+      repoPath: fixture.seedPath,
+      rawBranch: 'alice',
+      remoteName: 'origin',
+      branchPrefix: 'users/',
+    });
+
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') {
+      throw new Error('expected resolved branch');
+    }
+    expect(result.candidate.branchName).toBe('users/alice');
+    expect(result.candidate.local).toBe(false);
+    expect(result.candidate.remote).toBe(false);
+  });
+
+  it('returns ambiguous candidates when both prefixed and raw branches exist', async () => {
+    const fixture = await createRemoteFixture(['users/alice', 'alice'], 'main');
+    const clonePath = await cloneFixture(fixture.originPath, fixture.rootDir);
+
+    const result = await resolveSwitchBranchName({
+      repoPath: clonePath,
+      rawBranch: 'alice',
+      remoteName: 'origin',
+      branchPrefix: 'users/',
+    });
+
+    expect(result.status).toBe('ambiguous');
+    if (result.status !== 'ambiguous') {
+      throw new Error('expected ambiguous branch resolution');
+    }
+    expect(result.candidates.map((candidate) => candidate.branchName)).toEqual([
+      'users/alice',
+      'alice',
+    ]);
+  });
+
+  it('keeps both existing candidates ambiguous even when one has a worktree', async () => {
+    const fixture = await createRemoteFixture(['users/alice', 'alice'], 'main');
+
+    const result = await resolveSwitchBranchName({
+      repoPath: fixture.seedPath,
+      rawBranch: 'alice',
+      remoteName: 'origin',
+      branchPrefix: 'users/',
+      worktrees: [{ branchName: 'alice', path: '/tmp/alice' }],
+    });
+
+    expect(result.status).toBe('ambiguous');
+  });
+
+  it('only considers the raw branch when ignoring the configured prefix', async () => {
+    const fixture = await createRemoteFixture(['users/alice'], 'main');
+
+    const result = await resolveSwitchBranchName({
+      repoPath: fixture.seedPath,
+      rawBranch: 'alice',
+      remoteName: 'origin',
+      branchPrefix: 'users/',
+      ignorePrefix: true,
+    });
+
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') {
+      throw new Error('expected resolved branch');
+    }
+    expect(result.candidate.branchName).toBe('alice');
+    expect(result.candidate.local).toBe(false);
+    expect(result.candidate.remote).toBe(false);
   });
 });
 

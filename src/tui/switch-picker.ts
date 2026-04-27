@@ -1,6 +1,10 @@
 import Enquirer from 'enquirer';
 
-import { formatWorktreeRows, isInteractiveTerminal } from '@/commands/shared';
+import {
+  formatWorktreeRows,
+  getSelectedChoiceValue,
+  isInteractiveTerminal,
+} from '@/commands/shared';
 
 interface SwitchPickerChoice {
   name: string;
@@ -124,7 +128,10 @@ export async function pickSwitchWorktreePath(
   try {
     const answer = await enquirer.prompt(promptOptions as never);
 
-    return answer.selected;
+    return getSelectedChoiceValue(
+      choices.map((choice) => choice.value),
+      answer.selected
+    );
   } catch (error) {
     if (error == null || error === '') {
       return null;

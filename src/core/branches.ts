@@ -1,4 +1,10 @@
-import { branchExists, listLocalBranches } from '@/core/git';
+import { basename } from 'node:path';
+
+import {
+  branchExists,
+  listLocalBranches,
+  remoteBranchExists,
+} from '@/core/git';
 import {
   findWorktreeForBranch,
   listWorktrees,
@@ -7,6 +13,13 @@ import {
 
 export interface BranchResolutionCandidate {
   branchName: string;
+  worktreePath?: string;
+}
+
+export interface SwitchBranchResolutionCandidate {
+  branchName: string;
+  local: boolean;
+  remote: boolean;
   worktreePath?: string;
 }
 
@@ -28,6 +41,25 @@ export interface ResolveBranchNameOptions {
   ignorePrefix?: boolean;
   worktrees?: WorktreeEntry[];
 }
+
+export interface ResolveSwitchBranchNameOptions {
+  repoPath: string;
+  rawBranch: string;
+  remoteName: string;
+  branchPrefix?: string;
+  ignorePrefix?: boolean;
+  worktrees?: WorktreeEntry[];
+}
+
+export type SwitchBranchResolution =
+  | {
+      status: 'resolved';
+      candidate: SwitchBranchResolutionCandidate;
+    }
+  | {
+      status: 'ambiguous';
+      candidates: SwitchBranchResolutionCandidate[];
+    };
 
 function uniqueBranches(branchNames: string[]): string[] {
   return [...new Set(branchNames)];
@@ -53,6 +85,31 @@ export function encodeBranchPath(
   branchPrefix: string
 ): string {
   return stripBranchPrefix(branchName, branchPrefix).replaceAll('/', '~');
+}
+
+export function encodeFullBranchPath(branchName: string): string {
+  return branchName.replaceAll('/', '~');
+}
+
+export function getSwitchTargetFolderName(
+  branchName: string,
+  branchPrefix: string,
+  worktrees: WorktreeEntry[]
+): string {
+  const folderName = encodeBranchPath(branchName, branchPrefix);
+  if (!hasBranchPrefix(branchName, branchPrefix)) {
+    return folderName;
+  }
+
+  const collidingWorktree = worktrees.find(
+    (entry) =>
+      basename(entry.path) === folderName && entry.branchName !== branchName
+  );
+  if (!collidingWorktree) {
+    return folderName;
+  }
+
+  return encodeFullBranchPath(branchName);
 }
 
 export function findSuffixBranchCandidates(
@@ -99,6 +156,100 @@ async function buildAmbiguousCandidates(
       worktreePath,
     };
   });
+}
+
+function getSwitchBranchCandidates(
+  rawBranch: string,
+  branchPrefix: string,
+  ignorePrefix: boolean
+): string[] {
+  if (
+    ignorePrefix ||
+    branchPrefix === '' ||
+    hasBranchPrefix(rawBranch, branchPrefix)
+  ) {
+    return [rawBranch];
+  }
+
+  return uniqueBranches([branchPrefix + rawBranch, rawBranch]);
+}
+
+async function buildSwitchBranchCandidate(
+  options: ResolveSwitchBranchNameOptions,
+  branchName: string,
+  worktrees: WorktreeEntry[]
+): Promise<SwitchBranchResolutionCandidate> {
+  const local = await branchExists(options.repoPath, branchName);
+  const remote = local
+    ? false
+    : await remoteBranchExists(
+        options.repoPath,
+        options.remoteName,
+        branchName
+      );
+  const worktreePath =
+    findWorktreeForBranch(worktrees, branchName) || undefined;
+
+  return {
+    branchName,
+    local,
+    remote,
+    worktreePath,
+  };
+}
+
+function switchCandidateExists(
+  candidate: SwitchBranchResolutionCandidate
+): boolean {
+  return candidate.local || candidate.remote || candidate.worktreePath != null;
+}
+
+export async function resolveSwitchBranchName(
+  options: ResolveSwitchBranchNameOptions
+): Promise<SwitchBranchResolution> {
+  const branchPrefix = options.branchPrefix || '';
+  const ignorePrefix = options.ignorePrefix || false;
+  const branchNames = getSwitchBranchCandidates(
+    options.rawBranch,
+    branchPrefix,
+    ignorePrefix
+  );
+  const worktrees =
+    options.worktrees || (await listWorktrees(options.repoPath));
+  const candidates: SwitchBranchResolutionCandidate[] = [];
+
+  for (const branchName of branchNames) {
+    candidates.push(
+      await buildSwitchBranchCandidate(options, branchName, worktrees)
+    );
+  }
+
+  if (candidates.length === 1) {
+    return {
+      status: 'resolved',
+      candidate: candidates[0],
+    };
+  }
+
+  const existingCandidates = candidates.filter(switchCandidateExists);
+  if (existingCandidates.length === 1) {
+    return {
+      status: 'resolved',
+      candidate: existingCandidates[0],
+    };
+  }
+
+  if (existingCandidates.length > 1) {
+    return {
+      status: 'ambiguous',
+      candidates: existingCandidates,
+    };
+  }
+
+  return {
+    status: 'resolved',
+    candidate: candidates[0],
+  };
 }
 
 export async function resolveBranchName(

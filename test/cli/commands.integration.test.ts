@@ -146,6 +146,165 @@ describe('CLI integration', () => {
     await expect(branchExists(mainPath, 'feature/test')).resolves.toBe(false);
   }, 60_000);
 
+  it('removes only the worktree with --worktree and trailing -w', async () => {
+    const fixture = await createRemoteFixture(['feature/test'], 'main');
+    const workDir = await createWorkDir(fixture.rootDir);
+
+    await runCliWithCwdCapture(['clone', 'demo', fixture.originPath], {
+      cwd: workDir,
+    });
+
+    const mainPath = join(workDir, 'demo', 'main');
+    const featurePath = join(workDir, 'demo', 'feature~test');
+
+    await runCliWithCwdCapture(['switch', 'feature/test'], { cwd: mainPath });
+
+    const longResult = await runCli(['remove', '--worktree', 'feature/test'], {
+      cwd: mainPath,
+    });
+    expect(longResult.exitCode).toBe(0);
+    expect(await pathExists(featurePath)).toBe(false);
+    await expect(branchExists(mainPath, 'feature/test')).resolves.toBe(true);
+
+    await runCliWithCwdCapture(['switch', 'feature/test'], { cwd: mainPath });
+
+    const shortResult = await runCli(['remove', 'feature/test', '-w'], {
+      cwd: mainPath,
+    });
+    expect(shortResult.exitCode).toBe(0);
+    expect(await pathExists(featurePath)).toBe(false);
+    await expect(branchExists(mainPath, 'feature/test')).resolves.toBe(true);
+  }, 60_000);
+
+  it('rejects --worktree when no matching worktree exists', async () => {
+    const fixture = await createRemoteFixture(['feature/test'], 'main');
+    const workDir = await createWorkDir(fixture.rootDir);
+
+    await runCliWithCwdCapture(['clone', 'demo', fixture.originPath], {
+      cwd: workDir,
+    });
+
+    const mainPath = join(workDir, 'demo', 'main');
+    await runGit(['branch', 'feature/test', 'origin/feature/test'], {
+      cwd: mainPath,
+    });
+
+    const result = await runCli(['remove', '--worktree', 'feature/test'], {
+      cwd: mainPath,
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(
+      'worktree does not exist for branch: feature/test'
+    );
+  }, 60_000);
+
+  it('rejects --remote with --worktree', async () => {
+    const fixture = await createRemoteFixture([], 'main');
+    const workDir = await createWorkDir(fixture.rootDir);
+
+    await runCliWithCwdCapture(['clone', 'demo', fixture.originPath], {
+      cwd: workDir,
+    });
+
+    const result = await runCli(
+      ['remove', '--remote', '--worktree', 'feature/test'],
+      { cwd: join(workDir, 'demo', 'main') }
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('--remote cannot be used with --worktree');
+  }, 60_000);
+
+  it('switches to prefixed remote branches by unprefixed name', async () => {
+    const branchName = 'amadeus/diffs-improved-line-selection';
+    const fixture = await createRemoteFixture([branchName], 'main');
+    const workDir = await createWorkDir(fixture.rootDir);
+
+    await runCliWithCwdCapture(
+      ['clone', '--branch-prefix', 'amadeus/', 'demo', fixture.originPath],
+      { cwd: workDir }
+    );
+
+    const mainPath = join(workDir, 'demo', 'main');
+    const targetPath = join(workDir, 'demo', 'diffs-improved-line-selection');
+    const switchResult = await runCliWithCwdCapture(
+      ['switch', 'diffs-improved-line-selection'],
+      { cwd: mainPath }
+    );
+
+    expect(switchResult.result.exitCode).toBe(0);
+    expect(switchResult.targetPath).toBe(await canonicalPath(targetPath));
+    expect(await pathExists(targetPath)).toBe(true);
+
+    const currentBranch = await runGit(['branch', '--show-current'], {
+      cwd: targetPath,
+    });
+    expect(currentBranch.stdout).toBe(branchName);
+
+    const upstream = await runGit(
+      ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'],
+      { cwd: targetPath }
+    );
+    expect(upstream.stdout).toBe(`origin/${branchName}`);
+  }, 60_000);
+
+  it('uses a prefixed folder name when the stripped folder has another branch', async () => {
+    const prefixedBranch = 'amadeus/topic';
+    const fixture = await createRemoteFixture([prefixedBranch], 'main');
+    const workDir = await createWorkDir(fixture.rootDir);
+
+    await runCliWithCwdCapture(
+      ['clone', '--branch-prefix', 'amadeus/', 'demo', fixture.originPath],
+      { cwd: workDir }
+    );
+
+    const mainPath = join(workDir, 'demo', 'main');
+    const rawPath = join(workDir, 'demo', 'topic');
+    const prefixedPath = join(workDir, 'demo', 'amadeus~topic');
+
+    const rawSwitch = await runCliWithCwdCapture(
+      ['switch', '--ignore-prefix', 'topic'],
+      { cwd: mainPath }
+    );
+    expect(rawSwitch.result.exitCode).toBe(0);
+    expect(rawSwitch.targetPath).toBe(await canonicalPath(rawPath));
+
+    const prefixedSwitch = await runCliWithCwdCapture(
+      ['switch', prefixedBranch],
+      { cwd: mainPath }
+    );
+    expect(prefixedSwitch.result.exitCode).toBe(0);
+    expect(prefixedSwitch.targetPath).toBe(await canonicalPath(prefixedPath));
+
+    const currentBranch = await runGit(['branch', '--show-current'], {
+      cwd: prefixedPath,
+    });
+    expect(currentBranch.stdout).toBe(prefixedBranch);
+  }, 60_000);
+
+  it('reports ambiguous prefixed and unprefixed switch matches', async () => {
+    const fixture = await createRemoteFixture(
+      ['amadeus/conflict', 'conflict'],
+      'main'
+    );
+    const workDir = await createWorkDir(fixture.rootDir);
+
+    await runCliWithCwdCapture(
+      ['clone', '--branch-prefix', 'amadeus/', 'demo', fixture.originPath],
+      { cwd: workDir }
+    );
+
+    const result = await runCli(['switch', 'conflict'], {
+      cwd: join(workDir, 'demo', 'main'),
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('multiple matching branches found');
+    expect(result.stderr).toContain('amadeus/conflict');
+    expect(result.stderr).toContain('conflict');
+  }, 60_000);
+
   it('initializes a manually arranged child worktree layout', async () => {
     const fixture = await createRemoteFixture([], 'main');
     const projectRoot = join(fixture.rootDir, 'manual-project');

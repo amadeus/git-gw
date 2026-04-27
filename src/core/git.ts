@@ -90,7 +90,13 @@ export async function remoteBranchExists(
   }
 
   const result = await runGit(
-    ['ls-remote', '--exit-code', '--heads', remoteName, branchName],
+    [
+      'ls-remote',
+      '--exit-code',
+      '--heads',
+      remoteName,
+      `refs/heads/${branchName}`,
+    ],
     repoPath
   );
   return result.exitCode === 0;

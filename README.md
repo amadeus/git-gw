@@ -118,6 +118,12 @@ Remove a worktree and its local branch:
 gw remove feature/login
 ```
 
+Remove only the worktree and keep the local branch:
+
+```bash
+gw remove --worktree feature/login
+```
+
 Remove with a remote branch delete:
 
 ```bash
@@ -158,7 +164,7 @@ error instead of guessing.
 gw list
 gw switch [--ignore-prefix] [branch]
 gw pr <number>
-gw remove|rm [--force] [--remote] [--ignore-prefix] <branch>
+gw remove|rm [--force] [--remote] [-w|--worktree] [--ignore-prefix] <branch>
 gw clone [--branch-prefix <prefix>] <project-name> <repo-url>
 gw init [--branch-prefix <prefix>]
 gw shell-init [--shell bash|zsh|fish|nu]
@@ -181,13 +187,16 @@ gw help
     during branch resolution and strip from folder names.
 - Worktree folders use the existing `flat-tilde` layout: branch slashes become
   `~`, so `feature/login` becomes `feature~login`.
-- `gw switch` first accepts an existing worktree folder name, then checks local
-  branches, remote branches, and branch-prefix-aware fallbacks.
+- `gw switch` treats explicit prefixed names as exact branch names. When a
+  branch prefix is configured and an unprefixed name is provided, it checks both
+  the prefixed and raw branch names locally and remotely, prompts if both exist,
+  and creates the prefixed variant if neither exists.
 - `gw pr <number>` requires `gh`, reads the PR head branch and owner, creates or
   reuses a fork remote, checks out local branch `pr_<number>`, and switches to
   the `pr_<number>` worktree.
 - `gw remove` refuses to remove the primary branch and refuses to remove the
-  current worktree while the shell is inside it.
+  current worktree while the shell is inside it. Use `--worktree` or `-w` to
+  remove only the worktree while keeping the local branch.
 - Relative `core.hooksPath` directories are copied from the primary worktree to
   newly created worktrees when possible.
 - The npm package ships a Node CLI plus shell wrappers for `bash`, `zsh`,
