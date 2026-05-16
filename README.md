@@ -179,8 +179,8 @@ gw help
   - `version` is the config format version.
   - `primary` is the primary/default branch directory, usually `main` or
     `master`.
-  - `remote` is the Git remote used for remote branch lookups and deletes,
-    usually `origin`.
+  - `remote` is the Git remote used for cached remote-tracking refs, PR
+    checkout, and remote branch deletes, usually `origin`.
   - `path_style` controls worktree folder naming. The current supported value is
     `flat-tilde`.
   - `branch-prefix` is an optional branch prefix that `gw switch` can apply
@@ -188,9 +188,12 @@ gw help
 - Worktree folders use the existing `flat-tilde` layout: branch slashes become
   `~`, so `feature/login` becomes `feature~login`.
 - `gw switch` treats explicit prefixed names as exact branch names. When a
-  branch prefix is configured and an unprefixed name is provided, it checks both
-  the prefixed and raw branch names locally and remotely, prompts if both exist,
-  and creates the prefixed variant if neither exists.
+  branch prefix is configured and an unprefixed name is provided, it checks the
+  prefixed and raw branch names against local branches, attached worktrees, and
+  cached remote-tracking refs. If both variants exist, it prompts; if neither
+  exists, it creates the prefixed variant.
+- `gw switch` does not fetch or probe remotes. Run `git fetch` yourself before
+  switching to branches that were created remotely after your last fetch.
 - `gw pr <number>` requires `gh`, reads the PR head branch and owner, creates or
   reuses a fork remote, checks out local branch `pr_<number>`, and switches to
   the `pr_<number>` worktree.

@@ -3,7 +3,7 @@ import { basename } from 'node:path';
 import {
   branchExists,
   listLocalBranches,
-  remoteBranchExists,
+  remoteBranchRefExists,
 } from '@/core/git';
 import {
   findWorktreeForBranch,
@@ -158,7 +158,7 @@ async function buildAmbiguousCandidates(
   });
 }
 
-function getSwitchBranchCandidates(
+export function getSwitchBranchCandidates(
   rawBranch: string,
   branchPrefix: string,
   ignorePrefix: boolean
@@ -179,16 +179,17 @@ async function buildSwitchBranchCandidate(
   branchName: string,
   worktrees: WorktreeEntry[]
 ): Promise<SwitchBranchResolutionCandidate> {
-  const local = await branchExists(options.repoPath, branchName);
+  const worktreePath =
+    findWorktreeForBranch(worktrees, branchName) || undefined;
+  const local =
+    worktreePath != null || (await branchExists(options.repoPath, branchName));
   const remote = local
     ? false
-    : await remoteBranchExists(
+    : await remoteBranchRefExists(
         options.repoPath,
         options.remoteName,
         branchName
       );
-  const worktreePath =
-    findWorktreeForBranch(worktrees, branchName) || undefined;
 
   return {
     branchName,
