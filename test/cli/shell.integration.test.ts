@@ -219,6 +219,28 @@ describe('shell wrapper integration', () => {
     60_000
   );
 
+  (hasFish ? test : test.skip)(
+    'supports partial fish completion matches',
+    async () => {
+      const fixture = await createShellFixture();
+
+      const result = await execa(
+        'fish',
+        [
+          '--no-config',
+          '-c',
+          'gw shell-init | source; cd $argv[1]; gw clone demo $argv[2] >/dev/null 2>/dev/null; cd $argv[1]/demo/main; complete -C "gw switch m" | string match -q "main*"; or exit 1; printf OK',
+          fixture.workDir,
+          fixture.originPath,
+        ],
+        { env: fixture.env }
+      );
+
+      expect(result.stdout).toContain('OK');
+    },
+    60_000
+  );
+
   (hasNu ? test : test.skip)(
     'supports the nu wrapper flow',
     async () => {

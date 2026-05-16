@@ -319,7 +319,27 @@ function renderBashLikeShellWrapper(): string {
   fi
 
   rm -f "$_gw_cwd_file" "$_gw_source_file"
+  __gw_completion_cache_key=
   return $_gw_status
+}
+`;
+}
+
+function renderBashLikeCompletionCache(): string {
+  return `__gw_completion_cache_key=
+__gw_completion_cache_output=
+
+__gw_completion_query() {
+  local _gw_query_current="$1"
+  shift
+  local _gw_key="$PWD|$_gw_query_current|$*"
+
+  if [[ "$_gw_key" != "$__gw_completion_cache_key" ]]; then
+    __gw_completion_cache_output=$(GW_COMPLETE_CURRENT="$_gw_query_current" command gw __complete -- "$@")
+    __gw_completion_cache_key="$_gw_key"
+  fi
+
+  printf '%s\n' "$__gw_completion_cache_output"
 }
 `;
 }
@@ -327,17 +347,23 @@ function renderBashLikeShellWrapper(): string {
 function renderBashCompletionInit(): string {
   return `__gw_bash_complete() {
   local _gw_current _gw_value _gw_description
+  local _gw_query_current
   local -a _gw_words_before_current
 
   COMPREPLY=()
   _gw_current="\${COMP_WORDS[COMP_CWORD]}"
   _gw_words_before_current=("\${COMP_WORDS[@]:0:COMP_CWORD}")
+  if [[ "$_gw_current" == -* ]]; then
+    _gw_query_current="-"
+  else
+    _gw_query_current=""
+  fi
 
   while IFS=$'\t' read -r _gw_value _gw_description; do
-    if [[ -n "$_gw_value" ]]; then
+    if [[ -n "$_gw_value" && "$_gw_value" == "$_gw_current"* ]]; then
       COMPREPLY+=("$_gw_value")
     fi
-  done < <(GW_COMPLETE_CURRENT="$_gw_current" command gw __complete -- "\${_gw_words_before_current[@]}")
+  done < <(__gw_completion_query "$_gw_query_current" "\${_gw_words_before_current[@]}")
 }
 
 complete -F __gw_bash_complete gw
@@ -347,19 +373,25 @@ complete -F __gw_bash_complete gw
 function renderZshCompletionInit(): string {
   return `__gw_zsh_complete() {
   local _gw_current _gw_value _gw_description
+  local _gw_query_current
   local -a _gw_words_before_current _gw_values _gw_descriptions
 
   _gw_current="\${words[CURRENT]:-}"
   if (( CURRENT > 1 )); then
     _gw_words_before_current=("\${(@)words[1,$(( CURRENT - 1 ))]}")
   fi
+  if [[ "$_gw_current" == -* ]]; then
+    _gw_query_current="-"
+  else
+    _gw_query_current=""
+  fi
 
   while IFS=$'\t' read -r _gw_value _gw_description; do
-    if [[ -n "$_gw_value" ]]; then
+    if [[ -n "$_gw_value" && "$_gw_value" == "$_gw_current"* ]]; then
       _gw_values+=("$_gw_value")
       _gw_descriptions+=("\${_gw_description:-$_gw_value}")
     fi
-  done < <(GW_COMPLETE_CURRENT="$_gw_current" command gw __complete -- "\${_gw_words_before_current[@]}")
+  done < <(__gw_completion_query "$_gw_query_current" "\${_gw_words_before_current[@]}")
 
   if (( \${#_gw_values[@]} > 0 )); then
     compadd -d _gw_descriptions -- "\${_gw_values[@]}"
@@ -377,23 +409,49 @@ fi
 }
 
 function renderBashShellInit(): string {
-  return `${renderBashLikeShellWrapper()}${renderBashCompletionInit()}`;
+  return `${renderBashLikeShellWrapper()}${renderBashLikeCompletionCache()}${renderBashCompletionInit()}`;
 }
 
 function renderZshShellInit(): string {
-  return `${renderBashLikeShellWrapper()}${renderZshCompletionInit()}`;
+  return `${renderBashLikeShellWrapper()}${renderBashLikeCompletionCache()}${renderZshCompletionInit()}`;
 }
 
 function renderFishCompletionInit(): string {
-  return `function __gw_fish_complete
+  return `set -g __gw_completion_cache_key
+set -g __gw_completion_cache_output
+
+function __gw_fish_completion_query
+    set -l query_current $argv[1]
+    set -e argv[1]
+    set -l key (string join \\t -- $PWD $query_current $argv)
+
+    if test "$key" != "$__gw_completion_cache_key"
+        set -g __gw_completion_cache_output (env GW_COMPLETE_CURRENT="$query_current" command gw __complete -- $argv)
+        set -g __gw_completion_cache_key "$key"
+    end
+
+    printf '%s\n' $__gw_completion_cache_output
+end
+
+function __gw_fish_complete
     set -l current (commandline -ct)
     set -l tokens (commandline -opc)
+    set -l query_current ''
 
     if test -n "$current"; and test (count $tokens) -gt 0; and test "$tokens[-1]" = "$current"
         set -e tokens[-1]
     end
 
-    env GW_COMPLETE_CURRENT="$current" command gw __complete -- $tokens
+    if string match -q -- '-*' "$current"
+        set query_current '-'
+    end
+
+    for candidate in (__gw_fish_completion_query "$query_current" $tokens)
+        set -l value (string split -m1 \\t -- $candidate)[1]
+        if string match -q -- "$current*" "$value"
+            printf '%s\n' "$candidate"
+        end
+    end
 end
 
 complete -c gw -f -a '(__gw_fish_complete)'
@@ -441,6 +499,7 @@ function renderFishShellInit(): string {
     end
 
     command rm -f -- "$cwd_file" "$source_file"
+    set -g __gw_completion_cache_key
     return $_gw_status
 end
 ${renderFishCompletionInit()}
