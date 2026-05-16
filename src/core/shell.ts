@@ -12,13 +12,12 @@ const GW_RC_BLOCK_START = '# >>> gw >>>';
 const GW_RC_BLOCK_END = '# <<< gw <<<';
 const BASH_RC_CANDIDATES = ['.bashrc', '.bash_profile', '.profile'] as const;
 
-const BASH_LIKE_SHELLS = new Set<ShellName>(['bash', 'zsh']);
-
 export interface ShellIntegrationInstallResult {
   shell: ShellName;
   rcFilePath: string;
   rcFileLabel: string;
   initFilePath: string;
+  completionFilePath?: string;
   updatedRcFile: boolean;
 }
 
@@ -58,6 +57,10 @@ function getShellInitFilePath(shell: ShellName): string {
 
 function getFishFunctionFilePath(): string {
   return join(getConfigRoot(), 'fish', 'functions', 'gw.fish');
+}
+
+function getFishCompletionFilePath(): string {
+  return join(getConfigRoot(), 'fish', 'completions', 'gw.fish');
 }
 
 async function detectParentShellName(): Promise<ShellName | null> {
@@ -218,13 +221,22 @@ export async function installShellIntegration(
   const rcFilePath = await getShellRcFilePath(shell);
 
   if (shell === 'fish') {
+    const completionFilePath = getFishCompletionFilePath();
     const initText = renderShellInit(shell);
+    const completionText = renderFishCompletionInit();
     const existingInitText = await readTextFile(initFilePath);
-    const updated = existingInitText !== initText;
+    const existingCompletionText = await readTextFile(completionFilePath);
+    const updatedInit = existingInitText !== initText;
+    const updatedCompletion = existingCompletionText !== completionText;
 
-    if (updated) {
+    if (updatedInit) {
       await mkdir(dirname(initFilePath), { recursive: true });
       await writeFile(initFilePath, initText, 'utf8');
+    }
+
+    if (updatedCompletion) {
+      await mkdir(dirname(completionFilePath), { recursive: true });
+      await writeFile(completionFilePath, completionText, 'utf8');
     }
 
     return {
@@ -232,7 +244,8 @@ export async function installShellIntegration(
       rcFilePath: initFilePath,
       rcFileLabel: 'function file',
       initFilePath,
-      updatedRcFile: updated,
+      completionFilePath,
+      updatedRcFile: updatedInit || updatedCompletion,
     };
   }
 
@@ -272,7 +285,7 @@ export function getSessionActivationCommand(shell: ShellName): string {
   }
 }
 
-function renderBashLikeShellInit(): string {
+function renderBashLikeShellWrapper(): string {
   return `gw() {
   if [[ $# -eq 0 ]]; then
     command gw
@@ -308,6 +321,82 @@ function renderBashLikeShellInit(): string {
   rm -f "$_gw_cwd_file" "$_gw_source_file"
   return $_gw_status
 }
+`;
+}
+
+function renderBashCompletionInit(): string {
+  return `__gw_bash_complete() {
+  local _gw_current _gw_value _gw_description
+  local -a _gw_words_before_current
+
+  COMPREPLY=()
+  _gw_current="\${COMP_WORDS[COMP_CWORD]}"
+  _gw_words_before_current=("\${COMP_WORDS[@]:0:COMP_CWORD}")
+
+  while IFS=$'\t' read -r _gw_value _gw_description; do
+    if [[ -n "$_gw_value" ]]; then
+      COMPREPLY+=("$_gw_value")
+    fi
+  done < <(GW_COMPLETE_CURRENT="$_gw_current" command gw __complete -- "\${_gw_words_before_current[@]}")
+}
+
+complete -F __gw_bash_complete gw
+`;
+}
+
+function renderZshCompletionInit(): string {
+  return `__gw_zsh_complete() {
+  local _gw_current _gw_value _gw_description
+  local -a _gw_words_before_current _gw_values _gw_descriptions
+
+  _gw_current="\${words[CURRENT]:-}"
+  if (( CURRENT > 1 )); then
+    _gw_words_before_current=("\${(@)words[1,$(( CURRENT - 1 ))]}")
+  fi
+
+  while IFS=$'\t' read -r _gw_value _gw_description; do
+    if [[ -n "$_gw_value" ]]; then
+      _gw_values+=("$_gw_value")
+      _gw_descriptions+=("\${_gw_description:-$_gw_value}")
+    fi
+  done < <(GW_COMPLETE_CURRENT="$_gw_current" command gw __complete -- "\${_gw_words_before_current[@]}")
+
+  if (( \${#_gw_values[@]} > 0 )); then
+    compadd -d _gw_descriptions -- "\${_gw_values[@]}"
+  fi
+}
+
+autoload -Uz compinit
+if ! (( $+functions[compdef] )); then
+  compinit -u
+fi
+if (( $+functions[compdef] )); then
+  compdef __gw_zsh_complete gw
+fi
+`;
+}
+
+function renderBashShellInit(): string {
+  return `${renderBashLikeShellWrapper()}${renderBashCompletionInit()}`;
+}
+
+function renderZshShellInit(): string {
+  return `${renderBashLikeShellWrapper()}${renderZshCompletionInit()}`;
+}
+
+function renderFishCompletionInit(): string {
+  return `function __gw_fish_complete
+    set -l current (commandline -ct)
+    set -l tokens (commandline -opc)
+
+    if test -n "$current"; and test (count $tokens) -gt 0; and test "$tokens[-1]" = "$current"
+        set -e tokens[-1]
+    end
+
+    env GW_COMPLETE_CURRENT="$current" command gw __complete -- $tokens
+end
+
+complete -c gw -f -a '(__gw_fish_complete)'
 `;
 }
 
@@ -354,6 +443,7 @@ function renderFishShellInit(): string {
     command rm -f -- "$cwd_file" "$source_file"
     return $_gw_status
 end
+${renderFishCompletionInit()}
 `;
 }
 
@@ -395,13 +485,14 @@ function renderNuShellInit(): string {
 }
 
 export function renderShellInit(shell: ShellName): string {
-  if (BASH_LIKE_SHELLS.has(shell)) {
-    return renderBashLikeShellInit();
+  switch (shell) {
+    case 'bash':
+      return renderBashShellInit();
+    case 'zsh':
+      return renderZshShellInit();
+    case 'fish':
+      return renderFishShellInit();
+    case 'nu':
+      return renderNuShellInit();
   }
-
-  if (shell === 'fish') {
-    return renderFishShellInit();
-  }
-
-  return renderNuShellInit();
 }

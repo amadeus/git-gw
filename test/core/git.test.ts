@@ -12,7 +12,7 @@ import {
   detectRemoteHeadFromRepo,
   detectRemoteHeadFromUrl,
   getPreferredRemote,
-  remoteBranchExists,
+  remoteBranchRefExists,
   syncRelativeHooksPath,
 } from '@/core/git';
 
@@ -48,14 +48,16 @@ describe('git helpers', () => {
     );
   });
 
-  it('checks remote branch refs exactly', async () => {
+  it('checks cached remote branch refs exactly', async () => {
     const fixture = await createRemoteFixture(['users/alice'], 'main');
+    const clonePath = join(fixture.rootDir, 'clone');
+    await runGit(['clone', fixture.originPath, clonePath]);
 
     await expect(
-      remoteBranchExists(fixture.seedPath, 'origin', 'users/alice')
+      remoteBranchRefExists(clonePath, 'origin', 'users/alice')
     ).resolves.toBe(true);
     await expect(
-      remoteBranchExists(fixture.seedPath, 'origin', 'alice')
+      remoteBranchRefExists(clonePath, 'origin', 'alice')
     ).resolves.toBe(false);
   });
 

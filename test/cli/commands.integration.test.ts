@@ -89,6 +89,13 @@ async function createPathWithoutGh(): Promise<string> {
   return binDir;
 }
 
+function parseCompletionValues(stdout: unknown): string[] {
+  return String(stdout ?? '')
+    .split(/\r?\n/u)
+    .filter(Boolean)
+    .map((line) => line.split('\t')[0]);
+}
+
 describe('CLI integration', () => {
   it('prints the package version', async () => {
     const workDir = await makeTempDir('gw-version-');
@@ -176,6 +183,67 @@ describe('CLI integration', () => {
     await expect(branchExists(mainPath, 'feature/test')).resolves.toBe(true);
   }, 60_000);
 
+  it('completes only existing worktree branch names', async () => {
+    const fixture = await createRemoteFixture(
+      ['feature/test', 'feature/uncreated'],
+      'main'
+    );
+    const workDir = await createWorkDir(fixture.rootDir);
+
+    await runCliWithCwdCapture(['clone', 'demo', fixture.originPath], {
+      cwd: workDir,
+    });
+
+    const mainPath = join(workDir, 'demo', 'main');
+    const beforeSwitch = await runCli(['__complete', '--', 'gw', 'switch'], {
+      cwd: mainPath,
+      env: {
+        ...process.env,
+        GW_COMPLETE_CURRENT: 'feature/',
+      },
+    });
+    expect(beforeSwitch.exitCode).toBe(0);
+    expect(parseCompletionValues(beforeSwitch.stdout)).toEqual([]);
+
+    await runCliWithCwdCapture(['switch', 'feature/test'], { cwd: mainPath });
+
+    const switchResult = await runCli(['__complete', '--', 'gw', 'switch'], {
+      cwd: mainPath,
+      env: {
+        ...process.env,
+        GW_COMPLETE_CURRENT: 'feature/',
+      },
+    });
+    expect(switchResult.exitCode).toBe(0);
+    expect(parseCompletionValues(switchResult.stdout)).toEqual([
+      'feature/test',
+    ]);
+    expect(switchResult.stdout).not.toContain('feature~test');
+    expect(switchResult.stdout).not.toContain('feature/uncreated');
+
+    const removeResult = await runCli(['__complete', '--', 'gw', 'remove'], {
+      cwd: mainPath,
+      env: {
+        ...process.env,
+        GW_COMPLETE_CURRENT: '',
+      },
+    });
+    expect(removeResult.exitCode).toBe(0);
+    expect(parseCompletionValues(removeResult.stdout)).toEqual([
+      'feature/test',
+    ]);
+
+    const rmResult = await runCli(['__complete', '--', 'gw', 'rm'], {
+      cwd: mainPath,
+      env: {
+        ...process.env,
+        GW_COMPLETE_CURRENT: 'feature/',
+      },
+    });
+    expect(rmResult.exitCode).toBe(0);
+    expect(parseCompletionValues(rmResult.stdout)).toEqual(['feature/test']);
+  }, 60_000);
+
   it('rejects --worktree when no matching worktree exists', async () => {
     const fixture = await createRemoteFixture(['feature/test'], 'main');
     const workDir = await createWorkDir(fixture.rootDir);
@@ -216,7 +284,7 @@ describe('CLI integration', () => {
     expect(result.stderr).toContain('--remote cannot be used with --worktree');
   }, 60_000);
 
-  it('switches to prefixed remote branches by unprefixed name', async () => {
+  it('switches to cached prefixed remote branches by unprefixed name', async () => {
     const branchName = 'amadeus/diffs-improved-line-selection';
     const fixture = await createRemoteFixture([branchName], 'main');
     const workDir = await createWorkDir(fixture.rootDir);
@@ -247,6 +315,43 @@ describe('CLI integration', () => {
       { cwd: targetPath }
     );
     expect(upstream.stdout).toBe(`origin/${branchName}`);
+  }, 60_000);
+
+  it('does not discover remote branches created after clone', async () => {
+    const branchName = 'feature/unfetched';
+    const fixture = await createRemoteFixture([], 'main');
+    const workDir = await createWorkDir(fixture.rootDir);
+
+    await runCliWithCwdCapture(['clone', 'demo', fixture.originPath], {
+      cwd: workDir,
+    });
+
+    await runGit(['checkout', '-b', branchName], { cwd: fixture.seedPath });
+    await commitEmpty(fixture.seedPath, branchName);
+    await runGit(['push', '-u', 'origin', branchName], {
+      cwd: fixture.seedPath,
+    });
+
+    const mainPath = join(workDir, 'demo', 'main');
+    const targetPath = join(workDir, 'demo', 'feature~unfetched');
+    const switchResult = await runCliWithCwdCapture(['switch', branchName], {
+      cwd: mainPath,
+    });
+
+    expect(switchResult.result.exitCode).toBe(0);
+    expect(switchResult.targetPath).toBe(await canonicalPath(targetPath));
+    expect(await pathExists(targetPath)).toBe(true);
+
+    const currentBranch = await runGit(['branch', '--show-current'], {
+      cwd: targetPath,
+    });
+    expect(currentBranch.stdout).toBe(branchName);
+
+    const upstream = await runGit(
+      ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'],
+      { cwd: targetPath, reject: false }
+    );
+    expect(upstream.exitCode).not.toBe(0);
   }, 60_000);
 
   it('uses a prefixed folder name when the stripped folder has another branch', async () => {

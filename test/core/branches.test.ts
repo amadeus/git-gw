@@ -1,4 +1,4 @@
-import { createRemoteFixture, runGit } from '@test/helpers';
+import { commitEmpty, createRemoteFixture, runGit } from '@test/helpers';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -116,6 +116,32 @@ describe('resolveSwitchBranchName', () => {
     expect(result.candidate.branchName).toBe('users/alice');
     expect(result.candidate.local).toBe(false);
     expect(result.candidate.remote).toBe(true);
+  });
+
+  it('does not discover unfetched remote branches', async () => {
+    const fixture = await createRemoteFixture([], 'main');
+    const clonePath = await cloneFixture(fixture.originPath, fixture.rootDir);
+
+    await runGit(['checkout', '-b', 'users/alice'], { cwd: fixture.seedPath });
+    await commitEmpty(fixture.seedPath, 'users/alice');
+    await runGit(['push', '-u', 'origin', 'users/alice'], {
+      cwd: fixture.seedPath,
+    });
+
+    const result = await resolveSwitchBranchName({
+      repoPath: clonePath,
+      rawBranch: 'alice',
+      remoteName: 'origin',
+      branchPrefix: 'users/',
+    });
+
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') {
+      throw new Error('expected resolved branch');
+    }
+    expect(result.candidate.branchName).toBe('users/alice');
+    expect(result.candidate.local).toBe(false);
+    expect(result.candidate.remote).toBe(false);
   });
 
   it('uses the unprefixed branch when it is the only matching existing branch', async () => {

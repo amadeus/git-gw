@@ -42,6 +42,11 @@ Shell integration is required for `gw clone`, `gw switch`, and `gw pr` to change
 the current shell directory. Without it, the Node CLI can only print the target
 path.
 
+For `bash`, `zsh`, and `fish`, shell integration also registers tab completion
+for `gw switch`, `gw remove`, and `gw rm`. Completion only suggests existing
+worktree branch names such as `feature/login`; it does not suggest local-only
+branches, remote branches, or `flat-tilde` folder names such as `feature~login`.
+
 For a current-session setup:
 
 ```bash
@@ -70,8 +75,9 @@ gw setup --install --shell nu
 Persistent setup writes generated integration to the user's config directory.
 For `bash`, `zsh`, and `nu`, it adds a small managed source block to the shell
 rc file. For `fish`, it installs an autoloaded `gw` function file under
-`$XDG_CONFIG_HOME/fish/functions`. If shell integration is already active in the
-current session, `gw setup --install` also sources the generated integration
+`$XDG_CONFIG_HOME/fish/functions` and completion definitions under
+`$XDG_CONFIG_HOME/fish/completions`. If shell integration is already active in
+the current session, `gw setup --install` also sources the generated integration
 immediately. If shell integration is not active yet, `gw setup --install` prints
 the exact `source` command to run once in the current shell. New shell sessions
 load the persistent integration automatically.
@@ -179,8 +185,8 @@ gw help
   - `version` is the config format version.
   - `primary` is the primary/default branch directory, usually `main` or
     `master`.
-  - `remote` is the Git remote used for remote branch lookups and deletes,
-    usually `origin`.
+  - `remote` is the Git remote used for cached remote-tracking refs, PR
+    checkout, and remote branch deletes, usually `origin`.
   - `path_style` controls worktree folder naming. The current supported value is
     `flat-tilde`.
   - `branch-prefix` is an optional branch prefix that `gw switch` can apply
@@ -188,15 +194,20 @@ gw help
 - Worktree folders use the existing `flat-tilde` layout: branch slashes become
   `~`, so `feature/login` becomes `feature~login`.
 - `gw switch` treats explicit prefixed names as exact branch names. When a
-  branch prefix is configured and an unprefixed name is provided, it checks both
-  the prefixed and raw branch names locally and remotely, prompts if both exist,
-  and creates the prefixed variant if neither exists.
+  branch prefix is configured and an unprefixed name is provided, it checks the
+  prefixed and raw branch names against local branches, attached worktrees, and
+  cached remote-tracking refs. If both variants exist, it prompts; if neither
+  exists, it creates the prefixed variant.
+- `gw switch` does not fetch or probe remotes. Run `git fetch` yourself before
+  switching to branches that were created remotely after your last fetch.
 - `gw pr <number>` requires `gh`, reads the PR head branch and owner, creates or
   reuses a fork remote, checks out local branch `pr_<number>`, and switches to
   the `pr_<number>` worktree.
 - `gw remove` refuses to remove the primary branch and refuses to remove the
   current worktree while the shell is inside it. Use `--worktree` or `-w` to
   remove only the worktree while keeping the local branch.
+- Tab completion for `gw switch`, `gw remove`, and `gw rm` is intentionally
+  limited to existing worktrees, so creating a new worktree remains deliberate.
 - Relative `core.hooksPath` directories are copied from the primary worktree to
   newly created worktrees when possible.
 - The npm package ships a Node CLI plus shell wrappers for `bash`, `zsh`,

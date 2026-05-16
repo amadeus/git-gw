@@ -148,17 +148,24 @@ describe('shell wrapper integration', () => {
         'functions',
         'gw.fish'
       );
+      const completionFile = join(
+        fixture.configDir,
+        'fish',
+        'completions',
+        'gw.fish'
+      );
 
       const result = await execa(
         'fish',
         [
           '-c',
-          'gw setup --install --shell fish; test -f "$XDG_CONFIG_HOME/fish/functions/gw.fish"; or exit 1; test ! -e "$XDG_CONFIG_HOME/fish/config.fish"; or exit 1; source "$XDG_CONFIG_HOME/fish/functions/gw.fish"; gw --help >/dev/null; functions -q gw; or exit 1; printf OK',
+          'gw setup --install --shell fish; test -f "$XDG_CONFIG_HOME/fish/functions/gw.fish"; or exit 1; test -f "$XDG_CONFIG_HOME/fish/completions/gw.fish"; or exit 1; test ! -e "$XDG_CONFIG_HOME/fish/config.fish"; or exit 1; source "$XDG_CONFIG_HOME/fish/functions/gw.fish"; gw --help >/dev/null; functions -q gw; or exit 1; printf OK',
         ],
         { env: fixture.env }
       );
 
       expect(result.stdout).toContain(`function file: ${functionFile}`);
+      expect(result.stdout).toContain(`completion file: ${completionFile}`);
       expect(result.stdout).toContain(
         'Restart shell or run the following command:\n\n'
       );
@@ -178,7 +185,7 @@ describe('shell wrapper integration', () => {
         [
           '--no-config',
           '-c',
-          'gw shell-init --shell fish | source; functions -e __gw_needs_cd; function __gw_needs_cd; return 1; end; gw setup --install --shell fish >/dev/null; test -f "$XDG_CONFIG_HOME/fish/functions/gw.fish"; or exit 1; test ! -e "$XDG_CONFIG_HOME/fish/config.fish"; or exit 1; cd $argv[1]; gw clone demo $argv[2] >/dev/null 2>/dev/null; test (realpath .) = "$argv[1]/demo/main"; or exit 1; printf OK',
+          'gw shell-init --shell fish | source; functions -e __gw_needs_cd; function __gw_needs_cd; return 1; end; gw setup --install --shell fish >/dev/null; test -f "$XDG_CONFIG_HOME/fish/functions/gw.fish"; or exit 1; test -f "$XDG_CONFIG_HOME/fish/completions/gw.fish"; or exit 1; test ! -e "$XDG_CONFIG_HOME/fish/config.fish"; or exit 1; cd $argv[1]; gw clone demo $argv[2] >/dev/null 2>/dev/null; test (realpath .) = "$argv[1]/demo/main"; or exit 1; printf OK',
           fixture.workDir,
           fixture.originPath,
         ],

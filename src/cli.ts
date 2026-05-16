@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 
 import { registerCloneCommand } from '@/commands/clone';
+import { registerCompletionCommand } from '@/commands/completion';
 import { registerHelpCommand } from '@/commands/help';
 import { registerInitCommand } from '@/commands/init';
 import { registerListCommand } from '@/commands/list';
@@ -26,6 +27,7 @@ registerPrCommand(program);
 registerRemoveCommand(program);
 registerCloneCommand(program);
 registerInitCommand(program);
+registerCompletionCommand(program);
 registerShellInitCommand(program);
 registerSetupCommand(program);
 registerHelpCommand(program);

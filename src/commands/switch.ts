@@ -10,12 +10,13 @@ import {
   requestDirectoryChange,
   resolveSwitchBranchWithPrompt,
 } from '@/commands/shared';
-import { getSwitchTargetFolderName } from '@/core/branches';
+import {
+  getSwitchBranchCandidates,
+  getSwitchTargetFolderName,
+} from '@/core/branches';
 import { getBranchPrefix, getRemoteName } from '@/core/config';
 import {
   addWorktree,
-  branchExists,
-  fetchRemoteBranchRef,
   setBranchUpstream,
   syncRelativeHooksPath,
 } from '@/core/git';
@@ -75,6 +76,23 @@ export function registerSwitchCommand(program: Command): void {
 
           const remoteName = getRemoteName(context.config);
           const branchPrefix = getBranchPrefix(context.config);
+          const branchCandidates = getSwitchBranchCandidates(
+            rawBranch,
+            branchPrefix,
+            ignorePrefix
+          );
+
+          if (branchCandidates.length === 1) {
+            const candidateWorktree = findWorktreeForBranch(
+              worktrees,
+              branchCandidates[0]
+            );
+            if (candidateWorktree) {
+              await requestDirectoryChange(candidateWorktree);
+              return;
+            }
+          }
+
           const branchChoice = await resolveSwitchBranchWithPrompt(
             context,
             rawBranch,
@@ -110,17 +128,12 @@ export function registerSwitchCommand(program: Command): void {
             throw new Error(`target path already exists: ${targetPath}`);
           }
 
-          if (await branchExists(context.anchorRepo, resolvedBranch)) {
+          if (branchChoice.local) {
             await addWorktree(context.anchorRepo, targetPath, {
               branchName: resolvedBranch,
             });
           } else if (branchChoice.remote) {
             const remoteStartRef = `${remoteName}/${resolvedBranch}`;
-            await fetchRemoteBranchRef(
-              context.anchorRepo,
-              remoteName,
-              resolvedBranch
-            );
             await addWorktree(context.anchorRepo, targetPath, {
               branchName: resolvedBranch,
               createBranch: true,

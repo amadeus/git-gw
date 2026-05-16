@@ -80,28 +80,6 @@ export async function remoteBranchRefExists(
   return result.exitCode === 0;
 }
 
-export async function remoteBranchExists(
-  repoPath: string,
-  remoteName: string,
-  branchName: string
-): Promise<boolean> {
-  if (await remoteBranchRefExists(repoPath, remoteName, branchName)) {
-    return true;
-  }
-
-  const result = await runGit(
-    [
-      'ls-remote',
-      '--exit-code',
-      '--heads',
-      remoteName,
-      `refs/heads/${branchName}`,
-    ],
-    repoPath
-  );
-  return result.exitCode === 0;
-}
-
 export async function fetchRemoteBranchRef(
   repoPath: string,
   remoteName: string,
