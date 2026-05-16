@@ -89,6 +89,13 @@ async function createPathWithoutGh(): Promise<string> {
   return binDir;
 }
 
+function parseCompletionValues(stdout: unknown): string[] {
+  return String(stdout ?? '')
+    .split(/\r?\n/u)
+    .filter(Boolean)
+    .map((line) => line.split('\t')[0]);
+}
+
 describe('CLI integration', () => {
   it('prints the package version', async () => {
     const workDir = await makeTempDir('gw-version-');
@@ -174,6 +181,67 @@ describe('CLI integration', () => {
     expect(shortResult.exitCode).toBe(0);
     expect(await pathExists(featurePath)).toBe(false);
     await expect(branchExists(mainPath, 'feature/test')).resolves.toBe(true);
+  }, 60_000);
+
+  it('completes only existing worktree branch names', async () => {
+    const fixture = await createRemoteFixture(
+      ['feature/test', 'feature/uncreated'],
+      'main'
+    );
+    const workDir = await createWorkDir(fixture.rootDir);
+
+    await runCliWithCwdCapture(['clone', 'demo', fixture.originPath], {
+      cwd: workDir,
+    });
+
+    const mainPath = join(workDir, 'demo', 'main');
+    const beforeSwitch = await runCli(['__complete', '--', 'gw', 'switch'], {
+      cwd: mainPath,
+      env: {
+        ...process.env,
+        GW_COMPLETE_CURRENT: 'feature/',
+      },
+    });
+    expect(beforeSwitch.exitCode).toBe(0);
+    expect(parseCompletionValues(beforeSwitch.stdout)).toEqual([]);
+
+    await runCliWithCwdCapture(['switch', 'feature/test'], { cwd: mainPath });
+
+    const switchResult = await runCli(['__complete', '--', 'gw', 'switch'], {
+      cwd: mainPath,
+      env: {
+        ...process.env,
+        GW_COMPLETE_CURRENT: 'feature/',
+      },
+    });
+    expect(switchResult.exitCode).toBe(0);
+    expect(parseCompletionValues(switchResult.stdout)).toEqual([
+      'feature/test',
+    ]);
+    expect(switchResult.stdout).not.toContain('feature~test');
+    expect(switchResult.stdout).not.toContain('feature/uncreated');
+
+    const removeResult = await runCli(['__complete', '--', 'gw', 'remove'], {
+      cwd: mainPath,
+      env: {
+        ...process.env,
+        GW_COMPLETE_CURRENT: '',
+      },
+    });
+    expect(removeResult.exitCode).toBe(0);
+    expect(parseCompletionValues(removeResult.stdout)).toEqual([
+      'feature/test',
+    ]);
+
+    const rmResult = await runCli(['__complete', '--', 'gw', 'rm'], {
+      cwd: mainPath,
+      env: {
+        ...process.env,
+        GW_COMPLETE_CURRENT: 'feature/',
+      },
+    });
+    expect(rmResult.exitCode).toBe(0);
+    expect(parseCompletionValues(rmResult.stdout)).toEqual(['feature/test']);
   }, 60_000);
 
   it('rejects --worktree when no matching worktree exists', async () => {

@@ -17,4 +17,10 @@ describe('shell integration helpers', () => {
     expect(renderShellInit('nu')).toContain('GW_CWD_FILE');
     expect(renderShellInit('nu')).toContain('GW_SOURCE_FILE');
   });
+
+  it('renders shell completion hooks for supported shells', () => {
+    expect(renderShellInit('bash')).toContain('__gw_bash_complete');
+    expect(renderShellInit('zsh')).toContain('__gw_zsh_complete');
+    expect(renderShellInit('fish')).toContain('complete -c gw');
+  });
 });

@@ -114,14 +114,20 @@ export function registerSetupCommand(program: Command): void {
           process.stdout.write(`  init file: ${installResult.initFilePath}\n`);
         }
 
+        if (installResult.completionFilePath) {
+          process.stdout.write(
+            `  completion file: ${installResult.completionFilePath}\n`
+          );
+        }
+
+        const statusLabel = installResult.completionFilePath
+          ? 'integration files'
+          : installResult.rcFileLabel;
+
         if (installResult.updatedRcFile) {
-          process.stdout.write(
-            `  status: ${installResult.rcFileLabel} updated\n`
-          );
+          process.stdout.write(`  status: ${statusLabel} updated\n`);
         } else {
-          process.stdout.write(
-            `  status: ${installResult.rcFileLabel} already up to date\n`
-          );
+          process.stdout.write(`  status: ${statusLabel} already up to date\n`);
         }
 
         if (!didRequestShellSource) {
