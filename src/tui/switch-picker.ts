@@ -12,6 +12,17 @@ interface SwitchPickerChoice {
   message: string;
   hint: string;
   searchText: string;
+  index?: number;
+}
+
+interface SwitchPickerPromptInternal {
+  choices: SwitchPickerChoice[];
+  index: number;
+  limit: number;
+  alert(): unknown;
+  down(): unknown;
+  reset(...args: unknown[]): unknown;
+  up(): unknown;
 }
 
 interface EnquirerPromptInternal {
@@ -49,6 +60,102 @@ function formatPickerLabel(
   isCurrent: boolean
 ): string {
   return `${isCurrent ? '*' : ' '} ${branchName} ${folderName}`;
+}
+
+function getChoiceOrder(choice: SwitchPickerChoice, fallback: number): number {
+  return typeof choice.index === 'number' ? choice.index : fallback;
+}
+
+function isAtPickerBoundary(
+  choices: SwitchPickerChoice[],
+  index: number,
+  direction: 'up' | 'down'
+): boolean {
+  const focused = choices[index];
+  if (!focused) {
+    return true;
+  }
+
+  const focusedOrder = getChoiceOrder(focused, index);
+  const boundaryOrder = choices.reduce((boundary, choice, choiceIndex) => {
+    const order = getChoiceOrder(choice, choiceIndex);
+    return direction === 'up'
+      ? Math.min(boundary, order)
+      : Math.max(boundary, order);
+  }, focusedOrder);
+
+  return focusedOrder === boundaryOrder;
+}
+
+export function getSwitchPickerViewport<T>(
+  choices: T[],
+  selectedIndex: number,
+  limit: number
+): { choices: T[]; index: number } {
+  if (choices.length === 0) {
+    return { choices, index: 0 };
+  }
+
+  const boundedSelectedIndex = Math.max(
+    0,
+    Math.min(selectedIndex, choices.length - 1)
+  );
+  const visibleLimit = Math.max(1, Math.min(limit, choices.length));
+  const start = Math.max(
+    0,
+    Math.min(
+      boundedSelectedIndex - visibleLimit + 1,
+      choices.length - visibleLimit
+    )
+  );
+
+  if (start === 0) {
+    return { choices, index: boundedSelectedIndex };
+  }
+
+  return {
+    choices: choices.slice(start).concat(choices.slice(0, start)),
+    index: boundedSelectedIndex - start,
+  };
+}
+
+export function configureBoundedSwitchPickerPrompt(
+  prompt: SwitchPickerPromptInternal
+): void {
+  // Enquirer scrolls autocomplete lists by rotating choices; keep that model,
+  // but stop delegating once the focused original choice is at a boundary.
+  const reset = prompt.reset.bind(prompt);
+  prompt.reset = async (...args: unknown[]) => {
+    const result = await reset(...args);
+    const viewport = getSwitchPickerViewport(
+      prompt.choices,
+      prompt.index,
+      prompt.limit
+    );
+
+    prompt.choices = viewport.choices;
+    prompt.index = viewport.index;
+
+    return result;
+  };
+
+  const up = prompt.up.bind(prompt);
+  prompt.up = () => {
+    if (isAtPickerBoundary(prompt.choices, prompt.index, 'up')) {
+      return prompt.alert();
+    }
+
+    return up();
+  };
+
+  const down = prompt.down.bind(prompt);
+  prompt.down = () => {
+    if (isAtPickerBoundary(prompt.choices, prompt.index, 'down')) {
+      return prompt.alert();
+    }
+
+    return down();
+  };
 }
 
 export async function cancelPromptSilently(
@@ -110,6 +217,10 @@ export async function pickSwitchWorktreePath(
 
   const initial = rows.findIndex((row) => row.isCurrent);
   const enquirer = new Enquirer<{ selected: string }>();
+  enquirer.on('prompt', (prompt: SwitchPickerPromptInternal) => {
+    configureBoundedSwitchPickerPrompt(prompt);
+  });
+
   const promptOptions = {
     type: 'autocomplete',
     name: 'selected',
