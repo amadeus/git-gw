@@ -13,12 +13,14 @@ export interface GwConfig {
   remoteName: string;
   branchPrefix: string;
   pathStyle: string;
+  createAction?: string;
 }
 
 export interface WriteGwConfigOptions {
   primaryBranch: string;
   remoteName?: string;
   branchPrefix?: string;
+  createAction?: string;
 }
 
 export function getGwConfigPath(projectRoot: string): string {
@@ -58,6 +60,7 @@ export function parseGwConfig(text: string): GwConfig {
   }
 
   const primaryBranch = values.get('primary') || undefined;
+  const createAction = values.get('create-action') || undefined;
 
   return {
     version: values.get('version') || GW_CONFIG_VERSION,
@@ -65,6 +68,7 @@ export function parseGwConfig(text: string): GwConfig {
     remoteName: values.get('remote') || DEFAULT_REMOTE_NAME,
     branchPrefix: values.get('branch-prefix') || '',
     pathStyle: values.get('path_style') || GW_PATH_STYLE,
+    ...(createAction ? { createAction } : {}),
   };
 }
 
@@ -79,12 +83,14 @@ export async function writeGwConfig(
 ): Promise<void> {
   const remoteName = options.remoteName || DEFAULT_REMOTE_NAME;
   const branchPrefix = options.branchPrefix || '';
+  const createAction = options.createAction?.trim();
   const configText = [
     `version=${GW_CONFIG_VERSION}`,
     `primary=${options.primaryBranch}`,
     `remote=${remoteName}`,
     `path_style=${GW_PATH_STYLE}`,
     `branch-prefix=${branchPrefix}`,
+    ...(createAction ? [`create-action=${createAction}`] : []),
   ].join('\n');
 
   await writeFile(getGwConfigPath(projectRoot), `${configText}\n`, 'utf8');

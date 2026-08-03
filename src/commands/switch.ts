@@ -15,6 +15,7 @@ import {
   getSwitchTargetFolderName,
 } from '@/core/branches';
 import { getBranchPrefix, getRemoteName } from '@/core/config';
+import { runCreateAction } from '@/core/create-action';
 import {
   addWorktree,
   setBranchUpstream,
@@ -159,6 +160,7 @@ export function registerSwitchCommand(program: Command): void {
           }
 
           await requestDirectoryChange(targetPath);
+          await runCreateAction(context.config.createAction, targetPath);
         }
       )
     );

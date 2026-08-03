@@ -15,7 +15,7 @@ import { chmod, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { hasGwConfig } from '@/core/config';
+import { hasGwConfig, readGwConfig } from '@/core/config';
 import { branchExists } from '@/core/git';
 
 async function readExpectedPackageVersion(): Promise<string> {
@@ -181,6 +181,66 @@ describe('CLI integration', () => {
     expect(shortResult.exitCode).toBe(0);
     expect(await pathExists(featurePath)).toBe(false);
     await expect(branchExists(mainPath, 'feature/test')).resolves.toBe(true);
+  }, 60_000);
+
+  it('runs a create action only for a newly created switch worktree', async () => {
+    const fixture = await createRemoteFixture(['feature/test'], 'main');
+    const workDir = await createWorkDir(fixture.rootDir);
+    const createAction =
+      'pwd > .gw-create-cwd && printf run >> .gw-create-runs';
+
+    await runCliWithCwdCapture(
+      ['clone', '--create-action', createAction, 'demo', fixture.originPath],
+      { cwd: workDir }
+    );
+
+    const mainPath = join(workDir, 'demo', 'main');
+    const featurePath = join(workDir, 'demo', 'feature~test');
+    expect(await pathExists(join(mainPath, '.gw-create-cwd'))).toBe(false);
+
+    const created = await runCliWithCwdCapture(['switch', 'feature/test'], {
+      cwd: mainPath,
+    });
+    expect(created.result.exitCode).toBe(0);
+    expect(created.targetPath).toBe(await canonicalPath(featurePath));
+    expect(await readFile(join(featurePath, '.gw-create-cwd'), 'utf8')).toBe(
+      `${await canonicalPath(featurePath)}\n`
+    );
+    expect(await readFile(join(featurePath, '.gw-create-runs'), 'utf8')).toBe(
+      'run'
+    );
+
+    const existing = await runCliWithCwdCapture(['switch', 'feature/test'], {
+      cwd: mainPath,
+    });
+    expect(existing.result.exitCode).toBe(0);
+    expect(existing.targetPath).toBe(await canonicalPath(featurePath));
+    expect(await readFile(join(featurePath, '.gw-create-runs'), 'utf8')).toBe(
+      'run'
+    );
+  }, 60_000);
+
+  it('warns and continues when a create action fails', async () => {
+    const fixture = await createRemoteFixture(['feature/test'], 'main');
+    const workDir = await createWorkDir(fixture.rootDir);
+
+    await runCliWithCwdCapture(
+      ['clone', '--create-action', 'exit 9', 'demo', fixture.originPath],
+      { cwd: workDir }
+    );
+
+    const mainPath = join(workDir, 'demo', 'main');
+    const featurePath = join(workDir, 'demo', 'feature~test');
+    const result = await runCliWithCwdCapture(['switch', 'feature/test'], {
+      cwd: mainPath,
+    });
+
+    expect(result.result.exitCode).toBe(0);
+    expect(result.result.stderr).toContain(
+      'gw: create action failed (exit 9): exit 9'
+    );
+    expect(result.targetPath).toBe(await canonicalPath(featurePath));
+    expect(await pathExists(featurePath)).toBe(true);
   }, 60_000);
 
   it('completes only existing worktree branch names', async () => {
@@ -417,9 +477,16 @@ describe('CLI integration', () => {
     await mkdir(projectRoot, { recursive: true });
     await runGit(['clone', fixture.originPath, join(projectRoot, 'main')]);
 
-    const initResult = await runCli(['init'], { cwd: projectRoot });
+    const initResult = await runCli(
+      ['init', '--create-action', 'touch .gw-action-ran'],
+      { cwd: projectRoot }
+    );
     expect(initResult.exitCode).toBe(0);
     expect(await hasGwConfig(projectRoot)).toBe(true);
+    expect((await readGwConfig(projectRoot)).createAction).toBe(
+      'touch .gw-action-ran'
+    );
+    expect(await pathExists(join(projectRoot, '.gw-action-ran'))).toBe(false);
 
     const listResult = await runCli(['list'], { cwd: projectRoot });
     expect(listResult.exitCode).toBe(0);
@@ -442,9 +509,16 @@ describe('CLI integration', () => {
       'contrib'
     );
 
-    await runCliWithCwdCapture(['clone', 'demo', fixture.originPath], {
-      cwd: workDir,
-    });
+    await runCliWithCwdCapture(
+      [
+        'clone',
+        '--create-action',
+        'pwd > .gw-create-cwd',
+        'demo',
+        fixture.originPath,
+      ],
+      { cwd: workDir }
+    );
 
     const mainPath = join(workDir, 'demo', 'main');
     const prPath = join(workDir, 'demo', 'pr_123');
@@ -473,6 +547,9 @@ describe('CLI integration', () => {
     expect(prResult.result.exitCode).toBe(0);
     expect(prResult.targetPath).toBe(await canonicalPath(prPath));
     expect(await pathExists(prPath)).toBe(true);
+    expect(await readFile(join(prPath, '.gw-create-cwd'), 'utf8')).toBe(
+      `${await canonicalPath(prPath)}\n`
+    );
 
     const currentBranch = await runGit(['branch', '--show-current'], {
       cwd: prPath,
