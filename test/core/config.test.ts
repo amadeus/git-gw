@@ -19,6 +19,7 @@ describe('config', () => {
 primary = main
 remote = upstream
 branch-prefix = users/
+create-action = npm install && echo mode=development
 
 `);
 
@@ -28,6 +29,7 @@ branch-prefix = users/
       remoteName: 'upstream',
       branchPrefix: 'users/',
       pathStyle: 'flat-tilde',
+      createAction: 'npm install && echo mode=development',
     });
   });
 
@@ -37,6 +39,7 @@ branch-prefix = users/
     expect(config.remoteName).toBe(DEFAULT_REMOTE_NAME);
     expect(config.branchPrefix).toBe('');
     expect(config.pathStyle).toBe('flat-tilde');
+    expect(config.createAction).toBeUndefined();
   });
 
   it('writes and reads a gw config roundtrip', async () => {
@@ -46,6 +49,7 @@ branch-prefix = users/
       primaryBranch: 'main',
       remoteName: 'origin',
       branchPrefix: 'users/',
+      createAction: 'npm install && echo mode=development',
     });
 
     expect(await hasGwConfig(projectRoot)).toBe(true);
@@ -55,11 +59,15 @@ branch-prefix = users/
       remoteName: 'origin',
       branchPrefix: 'users/',
       pathStyle: 'flat-tilde',
+      createAction: 'npm install && echo mode=development',
     });
 
     const writtenText = await readFile(getGwConfigPath(projectRoot), 'utf8');
     expect(writtenText).toContain('primary=main');
     expect(writtenText).toContain('branch-prefix=users/');
+    expect(writtenText).toContain(
+      'create-action=npm install && echo mode=development'
+    );
   });
 
   it('throws when the primary branch is missing', () => {

@@ -39,6 +39,10 @@ Project conventions to keep updated as the repo evolves.
   directory changes. They communicate target directories through `GW_CWD_FILE`;
   shell wrappers in `src/core/shell.ts` pass handoff files to every command so
   newly added handoff commands do not require another static wrapper list.
+- A configured `create-action` runs as the final step for worktrees newly added
+  by `gw switch` and `gw pr`. Run it after `requestDirectoryChange` so its
+  working directory is the new worktree, and warn without failing the switch if
+  the action exits unsuccessfully.
 - Shell integration targets `bash`, `zsh`, `fish`, and `nu`. Missing shells may
   cause local smoke tests to skip, not fail.
 

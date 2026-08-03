@@ -13,6 +13,7 @@ import { cloneRepo, detectRemoteHeadFromUrl } from '@/core/git';
 
 interface CloneOptions {
   branchPrefix?: string;
+  createAction?: string;
 }
 
 export function registerCloneCommand(program: Command): void {
@@ -24,6 +25,10 @@ export function registerCloneCommand(program: Command): void {
     .option(
       '--branch-prefix <prefix>',
       'Prefix to apply when creating branches'
+    )
+    .option(
+      '--create-action <command>',
+      'Command to run after creating a worktree'
     )
     .action(
       commandAction(
@@ -50,6 +55,7 @@ export function registerCloneCommand(program: Command): void {
             primaryBranch,
             remoteName: 'origin',
             branchPrefix: options.branchPrefix || '',
+            createAction: options.createAction,
           });
 
           await requestDirectoryChange(cloneTarget);

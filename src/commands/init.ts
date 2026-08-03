@@ -18,6 +18,7 @@ import { resolvePath } from '@/core/project';
 
 interface InitOptions {
   branchPrefix?: string;
+  createAction?: string;
 }
 
 export function registerInitCommand(program: Command): void {
@@ -27,6 +28,10 @@ export function registerInitCommand(program: Command): void {
     .option(
       '--branch-prefix <prefix>',
       'Prefix to apply when creating branches'
+    )
+    .option(
+      '--create-action <command>',
+      'Command to run after creating a worktree'
     )
     .action(
       commandAction(async (options: InitOptions) => {
@@ -95,6 +100,7 @@ export function registerInitCommand(program: Command): void {
           primaryBranch,
           remoteName,
           branchPrefix: options.branchPrefix || '',
+          createAction: options.createAction,
         });
       })
     );

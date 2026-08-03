@@ -9,6 +9,7 @@ import {
   requestDirectoryChange,
 } from '@/commands/shared';
 import { getRemoteName } from '@/core/config';
+import { runCreateAction } from '@/core/create-action';
 import {
   addRemote,
   addWorktree,
@@ -132,6 +133,7 @@ export function registerPrCommand(program: Command): void {
         }
 
         await requestDirectoryChange(targetPath);
+        await runCreateAction(context.config.createAction, targetPath);
       })
     );
 }

@@ -153,6 +153,16 @@ gw switch fix-build
 With that config, `gw switch fix-build` resolves to `amadeus/fix-build` and uses
 the folder `fix-build`.
 
+Use `--create-action` to save a shell command that runs from each newly created
+worktree:
+
+```bash
+gw clone --create-action "npm install" my-project git@github.com:owner/repo.git
+```
+
+The action runs for worktrees created by `gw switch` and `gw pr`. It does not
+run for the initial clone or when switching to an existing worktree.
+
 ## `gw switch` Picker
 
 Running `gw switch` without a branch opens a searchable single-select picker in
@@ -171,8 +181,8 @@ gw list
 gw switch [--ignore-prefix] [branch]
 gw pr <number>
 gw remove|rm [--force] [--remote] [-w|--worktree] [--ignore-prefix] <branch>
-gw clone [--branch-prefix <prefix>] <project-name> <repo-url>
-gw init [--branch-prefix <prefix>]
+gw clone [--branch-prefix <prefix>] [--create-action <command>] <project-name> <repo-url>
+gw init [--branch-prefix <prefix>] [--create-action <command>]
 gw shell-init [--shell bash|zsh|fish|nu]
 gw setup [--install] [--shell bash|zsh|fish|nu]
 gw --version | gw -v
@@ -191,6 +201,8 @@ gw help
     `flat-tilde`.
   - `branch-prefix` is an optional branch prefix that `gw switch` can apply
     during branch resolution and strip from folder names.
+  - `create-action` is an optional shell command run from newly created switch
+    and PR worktrees.
 - Worktree folders use the existing `flat-tilde` layout: branch slashes become
   `~`, so `feature/login` becomes `feature~login`.
 - `gw switch` treats explicit prefixed names as exact branch names. When a
@@ -210,6 +222,9 @@ gw help
   limited to existing worktrees, so creating a new worktree remains deliberate.
 - Relative `core.hooksPath` directories are copied from the primary worktree to
   newly created worktrees when possible.
+- A configured `create-action` runs after the CLI changes into a new worktree.
+  If it fails, `gw` prints a warning and continues the successful switch. The
+  action is not rerun for an existing worktree.
 - The npm package ships a Node CLI plus shell wrappers for `bash`, `zsh`,
   `fish`, and `nu`.
 - The no-argument `gw switch` picker is searchable and interactive.
